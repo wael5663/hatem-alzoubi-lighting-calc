@@ -330,7 +330,34 @@ else:
                     recessed = st.checkbox("Recessed" if not is_ar else "مدمج",
                                             True, key="spot_recessed")
 
+                # --- DENSITY CONTROL & AUTO-CORRECTION ---
                 raw_qty = max(1, math.ceil(lumens_target[fx] / lm_each))
+                
+                # Max 1 spot per 2.5 m² for residential, 2.0 m² for commercial
+                max_density_area = 2.5 if building_category in ["Villa", "فيلا"] else 2.0
+                max_allowed_spots = max(4, int(area / max_density_area))
+                
+                if raw_qty > max_allowed_spots:
+                    st.warning(
+                        f"⚠️ **Density Control:** The math requires {raw_qty} spots, but that is too dense for a {area:.1f} m² room. "
+                        f"Quantity has been capped at **{max_allowed_spots} spots** to protect the interior design. "
+                        f"To compensate, please increase the **lumens per spot** or increase the **LED Profile / Hidden Light share**."
+                        if not is_ar else
+                        f"⚠️ **التحكم بالكثافة:** الحساب يتطلب {raw_qty} سبوت، لكن هذا عدد كبير جداً لغرفة {area:.1f} م². "
+                        f"تم تحديد الكمية بـ **{max_allowed_spots} سبوت** للحفاظ على التصميم الداخلي. "
+                        f"للتعويض، يرجى زيادة **اللومن لكل سبوت** أو زيادة نسبة **البروفايل / الإضاءة المخفية**."
+                    )
+                    raw_qty = max_allowed_spots
+                    
+                    recommended_lm = math.ceil(lumens_target[fx] / raw_qty)
+                    st.info(
+                        f"💡 **Recommendation:** Use spots of at least **{recommended_lm} lm** each, "
+                        f"or reduce the spot weight (%) in the distribution section above."
+                        if not is_ar else
+                        f"💡 **توصية:** استخدم سبوتات بقوة **{recommended_lm} لومن** على الأقل، "
+                        f"أو قلّل نسبة السبوت (%) في قسم توزيع اللومن أعلاه."
+                    )
+
                 max_dim = max(4, int(math.ceil(math.sqrt(raw_qty))) + 3)
                 room_ar = length / width
                 shr_lim = shr_max_for_beam(beam_deg)
@@ -355,22 +382,11 @@ else:
                             best = (tg, r, c, step_x, step_y)
 
                 if best is None:
-                    st.warning(
-                        "⚠️ No grid satisfies SHR limit. Falling back to closest fit. "
-                        "Consider narrower beam or more fixtures." if not is_ar
-                        else "⚠️ لا توجد شبكة تحقق SHR. سيتم استخدام أقرب حل. "
-                        "فكّر بزاوية أضيق أو وحدات أكثر."
+                    st.error(
+                        "⚠️ Could not find a suitable grid. Try adjusting beam angle or dimensions." if not is_ar
+                        else "⚠️ لم يتم العثور على شبكة مناسبة. جرب تعديل زاوية الشعاع أو الأبعاد."
                     )
-                    for r in range(1, max_dim + 1):
-                        for c in range(1, max_dim + 1):
-                            tg = r * c
-                            if tg < raw_qty: continue
-                            step_x = eff_len / (c + 1)
-                            step_y = eff_wid / (r + 1)
-                            score = abs((c / r) - room_ar) * 1.5 + (tg - raw_qty) * 0.4
-                            if score < best_score:
-                                best_score = score
-                                best = (tg, r, c, step_x, step_y)
+                    continue
 
                 qty, rows, cols, step_x, step_y = best
                 delivered_lm = qty * lm_each
