@@ -358,7 +358,6 @@ if selected_fixtures:
     st.write(f"Precise architectural positioning relative to room boundaries ({length}m × {width}m)." if not is_ar else f"تحديد المواضع المعمارية بدقة بالنسبة لحدود الغرفة ({length}م × {width}م).")
 
     if spot_qty_summary > 0:
-        # Pushed slightly outward to clear perimeter zones when profiles are active
         margin_x = 0.8 if profile_length_summary > 0 else 0.5
         margin_y = 0.8 if profile_length_summary > 0 else 0.5
         
@@ -394,8 +393,8 @@ if selected_fixtures:
                 f"- **الطول الخطي:** **{profile_length_summary} متر** موزعة حول محيط الغرفة."
             )
         elif "Parallel" in profile_placement_summary or "خطوط متوازية" in profile_placement_summary:
-            line_y1 = width * 0.25
-            line_y2 = width * 0.75
+            line_y1 = width * 0.2
+            line_y2 = width * 0.8
             st.info(
                 f"- **Design Strategy:** {profile_placement_summary}.\n"
                 f"- **Line Spacing:** Two clean parallel profile runs positioned at **{line_y1 * 100:.1f} cm** and **{line_y2 * 100:.1f} cm** from the bottom wall (completely separated from central spotlights).\n"
@@ -427,7 +426,6 @@ if selected_fixtures:
     
     ax.plot([0, length, length, 0, 0], [0, 0, width, width, 0], color='#2C3E50', linewidth=3, label='Room Boundary' if not is_ar else 'حدود الغرفة')
     
-    # Non-overlapping Spotlights calculation
     if spot_qty_summary > 0:
         margin_x = 0.8 if profile_length_summary > 0 else 0.5
         margin_y = 0.8 if profile_length_summary > 0 else 0.5
@@ -452,7 +450,6 @@ if selected_fixtures:
         if "Perimeter" in profile_placement_summary or "إطار محيطي" in profile_placement_summary:
             ax.plot([off, length - off, length - off, off, off], [off, off, width - off, width - off, off], color='#27AE60', linestyle='-.', linewidth=2.5, label='LED Profile' if not is_ar else 'بروفايل ليد')
         elif "Parallel" in profile_placement_summary or "خطوط متوازية" in profile_placement_summary:
-            # Shift parallel profiles nicely to the outer edges so they don't crash into center spotlights
             ax.plot([off, length - off], [width * 0.2, width * 0.2], color='#27AE60', linestyle='-.', linewidth=2.5, label='LED Profile' if not is_ar else 'بروفايل ليد')
             ax.plot([off, length - off], [width * 0.8, width * 0.8], color='#27AE60', linestyle='-.', linewidth=2.5)
         else:
@@ -474,4 +471,7 @@ if selected_fixtures:
     plt.close(fig)
 
     st.subheader("📋 Detailed Specification Report" if not is_ar else "📋 تقرير المواصفات التفصيلي")
-    st.write(f"**Space:** {building_category} — {room_type} ({length}m × {width}m × {height}m | Area: {area:.2f} m²)" if not is_ar else f"**الفراغ:** {building_category} — {room_type} ({length}م × {width}م × {
+    st.write(f"**Space:** {building_category} — {room_type} ({length}m × {width}m × {height}m | Area: {area:.2f} m²)" if not is_ar else f"**الفراغ:** {building_category} — {room_type} ({length}م × {width}م × {height}م | المساحة: {area:.2f} م²)")
+    
+    for item, details in fixture_specs.items():
+        st.markdown(f"- **{item}:** {details}")
