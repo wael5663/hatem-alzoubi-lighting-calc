@@ -158,7 +158,8 @@ else:
     lumens_per_fixture_type = total_lumens_required / len(selected_fixtures)
 
     for fixture in selected_fixtures:
-        with st.expander(f"⚙️ Engineering Specs & Layout for {fixture}" if not is_ar else f"⚙️ المواصفات الهندسية والتخطيط لـ {fixture}", expanded=True):
+        expander_label = f"⚙️ Engineering Specs & Layout for {fixture}" if not is_ar else f"⚙️ المواصفات الهندسية والتخطيط لـ {fixture}"
+        with st.expander(expander_label, expanded=True):
             f_col1, f_col2 = st.columns(2)
             
             cct = st.selectbox(
@@ -214,8 +215,13 @@ else:
                 cols_grid_summary = best_cols
                 rows_grid_summary = best_rows
                 
-                fixture_specs[fixture] = f"**Quantity:** {calculated_qty} pcs | **Grid:** {rows_grid_summary} × {cols_grid_summary} | **Model:** {cutout_size} | **Lumens:** {actual_lumens:,} lm" if not is_ar else f"**الكمية:** {calculated_qty} قطعة | **الشبكة:** {rows_grid_summary} × {cols_grid_summary} | **المقاس:** {cutout_size} | **اللومن:** {actual_lumens:,} lm"
-                st.info(f"📐 **Design Match:** Optimized to **{calculated_qty} spots** in a **{rows_grid_summary} × {cols_grid_summary}** proportional grid." if not is_ar else f"📐 **توافق التصميم:** تم تحسين الكمية إلى **{calculated_qty} سبوت** في شبكة متناسبة **{rows_grid_summary} × {cols_grid_summary}**.")
+                if not is_ar:
+                    fixture_specs[fixture] = f"**Quantity:** {calculated_qty} pcs | **Grid:** {rows_grid_summary} × {cols_grid_summary} | **Model:** {cutout_size} | **Lumens:** {actual_lumens:,} lm"
+                else:
+                    fixture_specs[fixture] = f"**الكمية:** {calculated_qty} قطعة | **الشبكة:** {rows_grid_summary} × {cols_grid_summary} | **المقاس:** {cutout_size} | **اللومن:** {actual_lumens:,} lm"
+                
+                info_text = f"📐 **Design Match:** Optimized to **{calculated_qty} spots** in a **{rows_grid_summary} × {cols_grid_summary}** proportional grid." if not is_ar else f"📐 **توافق التصميم:** تم تحسين الكمية إلى **{calculated_qty} سبوت** في شبكة متناسبة **{rows_grid_summary} × {cols_grid_summary}**."
+                st.info(info_text)
 
             elif "Magnetic Track" in fixture or "تراك" in fixture:
                 with f_col1:
@@ -235,8 +241,13 @@ else:
                 actual_lumens = calculated_length * lumens_per_meter
                 fixture_lumens_total += actual_lumens
                 
-                fixture_specs[fixture] = f"**Track Length:** {calculated_length}m | **Type:** {mount_type} | **Output:** {actual_lumens:,.0f} lm" if not is_ar else f"**طول التراك:** {calculated_length} متر | **النوع:** {mount_type} | **الإضاءة:** {actual_lumens:,.0f} lm"
-                st.info(f"📐 Required track length is **{calculated_length} meters**." if not is_ar else f"📐 طول التراك المطلوب هو **{calculated_length} متر**.")
+                if not is_ar:
+                    fixture_specs[fixture] = f"**Track Length:** {calculated_length}m | **Type:** {mount_type} | **Output:** {actual_lumens:,.0f} lm"
+                else:
+                    fixture_specs[fixture] = f"**طول التراك:** {calculated_length} متر | **النوع:** {mount_type} | **الإضاءة:** {actual_lumens:,.0f} lm"
+                
+                info_text = f"📐 Required track length is **{calculated_length} meters**." if not is_ar else f"📐 طول التراك المطلوب هو **{calculated_length} متر**."
+                st.info(info_text)
 
             elif "LED Profile" in fixture or "بروفايل" in fixture:
                 with f_col1:
@@ -287,4 +298,205 @@ else:
                 actual_lumens = calculated_length * lumens_per_meter
                 fixture_lumens_total += actual_lumens
                 
-                fixture_specs[fixture] = f"**Profile:** {profile_model} | **Placement:** {profile_placement} | **Length:** {calculated_length}m" if not is_ar else f"**الموديل:** {profile_model} | **
+                if not is_ar:
+                    fixture_specs[fixture] = f"**Profile:** {profile_model} | **Placement:** {profile_placement} | **Length:** {calculated_length}m"
+                else:
+                    fixture_specs[fixture] = f"**الموديل:** {profile_model} | **التوزيع:** {profile_placement} | **الطول:** {calculated_length} متر"
+                
+                info_text = f"📐 Model **{profile_model_summary}** requires **{calculated_length} meters**." if not is_ar else f"📐 الموديل **{profile_model_summary}** يتطلب **{calculated_length} متر**."
+                st.info(info_text)
+
+            elif "Hidden Light" in fixture or "مخفية" in fixture:
+                with f_col1:
+                    wattage = st.selectbox("LED Strip Power Tier:" if not is_ar else "فئة استطاعة شريط الليد:", ["9.6 W/m (Ambient)", "14.4 W/m (Medium)", "18 W/m (High Output)"], key=f"{fixture}_watt")
+                    lumens_per_meter = st.number_input("Strip Output per Meter (lm/m):" if not is_ar else "إضاءة الشريط لكل متر (لومن/م):", min_value=200, max_value=3000, value=1100, step=100, key=f"{fixture}_lumen_val")
+                with f_col2:
+                    covered_sides = st.multiselect(
+                        "Select Sides to Cover with Hidden Light:" if not is_ar else "اختر الجوانب المراد تغطيتها بالإضاءة المخفية:",
+                        ["Side A (Length 1)", "Side B (Length 2)", "Side C (Width 1)", "Side D (Width 2)"] if not is_ar else ["الجانب أ (الطول 1)", "الجانب ب (الطول 2)", "الجانب ج (العرض 1)", "الجانب د (العرض 2)"],
+                        default=["Side A (Length 1)", "Side B (Length 2)", "Side C (Width 1)", "Side D (Width 2)"] if not is_ar else ["الجانب أ (الطول 1)", "الجانب ب (الطول 2)", "الجانب ج (العرض 1)", "الجانب د (العرض 2)"],
+                        key=f"{fixture}_sides"
+                    )
+                    covered_sides_summary = covered_sides
+                
+                side_length_val = length
+                side_width_val = width
+                calculated_length = 0.0
+                for side in covered_sides:
+                    calculated_length += side_length_val if ("Length" in side or "الطول" in side) else side_width_val
+
+                if calculated_length == 0:
+                    calculated_length = 1.0
+                
+                hidden_length_summary = calculated_length
+                actual_lumens = calculated_length * lumens_per_meter
+                fixture_lumens_total += actual_lumens
+                
+                if not is_ar:
+                    fixture_specs[fixture] = f"**Hidden Strip Length:** {calculated_length}m | **Output:** {actual_lumens:,.0f} lm"
+                else:
+                    fixture_specs[fixture] = f"**طول الشريط المخفي:** {calculated_length} متر | **الإضاءة:** {actual_lumens:,.0f} lm"
+                
+                info_text = f"📐 Total hidden strip length is **{calculated_length} meters**." if not is_ar else f"📐 إجمالي طول الشريط المخفي هو **{calculated_length} متر**."
+                st.info(info_text)
+
+# ==========================================
+# PHASE 3: VERIFICATION & BILL OF QUANTITIES
+# ==========================================
+if selected_fixtures:
+    st.divider()
+    st.header(t["p3_header"])
+
+    v_col1, v_col2, v_col3 = st.columns(3)
+    v_col1.metric("Required Lumens (inc. MF)" if not is_ar else "اللومن المطلوب", f"{total_lumens_required:,.0f} lm")
+    v_col2.metric("Engineered Delivered Lumens" if not is_ar else "اللومن المزود بالحسابات", f"{fixture_lumens_total:,.0f} lm")
+    
+    diff = fixture_lumens_total - total_lumens_required
+    v_col3.metric("Lumen Variance" if not is_ar else "فرق اللومن", f"{diff:+,.0f} lm")
+
+    if fixture_lumens_total >= total_lumens_required:
+        st.success(f"✅ **Design Validated:** The automated layout meets or exceeds required lux levels." if not is_ar else f"✅ **تم اعتماد التصميم:** التخطيط التلقائي يلبي أو يتجاوز مستوى الإضاءة المطلوبة.")
+    else:
+        st.warning(f"⚠️ **Adjustment Recommended:** Output is slightly below target. Consider increasing lumen output." if not is_ar else f"⚠️ **تعديل مقترح:** الإضاءة أقل بقليل من المستهدف. يُنصح بزيادة استطاعة الوحدات.")
+
+    boq_title = "🎯 Recommended Lighting Bill of Quantities" if not is_ar else "🎯 جدول كميات المواد المقترح (BOQ)"
+    st.subheader(boq_title)
+    
+    rec_col1, rec_col2, rec_col3, rec_col4 = st.columns(4)
+    with rec_col1:
+        st.metric("Spot Lights" if not is_ar else "سبوت لايت", f"{spot_qty_summary} pcs" if spot_qty_summary > 0 else "N/A")
+    with rec_col2:
+        st.metric("Magnetic Track" if not is_ar else "تراك مغناطيسي", f"{track_length_summary} m" if track_length_summary > 0 else "N/A")
+    with rec_col3:
+        st.metric("LED Profile" if not is_ar else "بروفايل ليد", f"{profile_length_summary} m" if profile_length_summary > 0 else "N/A")
+    with rec_col4:
+        st.metric("Hidden Light" if not is_ar else "إضاءة مخفية", f"{hidden_length_summary} m" if hidden_length_summary > 0 else "N/A")
+
+    # ==========================================
+    # PHASE 4: INSTALLATION LAYOUT & SPACING GUIDE
+    # ==========================================
+    st.divider()
+    st.header(t["p4_header"])
+    st.write(f"Precise architectural positioning relative to room boundaries ({length}m × {width}m)." if not is_ar else f"تحديد المواضع المعمارية بدقة بالنسبة لحدود الغرفة ({length}م × {width}م).")
+
+    if spot_qty_summary > 0:
+        margin_x = 1.0
+        margin_y = 0.9
+        
+        eff_len = length - (2 * margin_x)
+        eff_wid = width - (2 * margin_y)
+        
+        step_x = eff_len / (cols_grid_summary + 1)
+        step_y = eff_wid / (rows_grid_summary + 1)
+        
+        st.markdown(f"### 🔵 Spot Lights Layout Guide ({spot_qty_summary} pcs)" if not is_ar else f"### 🔵 دليل توزيع السبوت لايت ({spot_qty_summary} قطعة)")
+        st.info(
+            f"- **Grid Configuration:** Proportional **{rows_grid_summary} rows × {cols_grid_summary} columns** matrix (zoning-cleared from perimeter).\n"
+            f"- **X-axis Positioning:** First row starts at **{margin_x * 100 + step_x * 100:.1f} cm** from the left wall, spaced **{step_x * 100:.1f} cm** apart.\n"
+            f"- **Y-axis Positioning:** Spaced **{step_y * 100:.1f} cm** center-to-center."
+            if not is_ar else
+            f"- **تكوين الشبكة:** مصفوفة متناسبة **{rows_grid_summary} صفوف × {cols_grid_summary} أعمدة** (معزولة عن محيط الغرفة لتجنب التداخل).\n"
+            f"- **الموضع على محور X:** يبعد العمود الأول **{margin_x * 100 + step_x * 100:.1f} سم** من الجدار الأيسر، بمسافة **{step_x * 100:.1f} سم** بين الوحدات.\n"
+            f"- **الموضع على محور Y:** المسافة بين المراكز **{step_y * 100:.1f} سم**."
+        )
+
+    if profile_length_summary > 0:
+        offset_profile = 30
+        st.markdown(f"### 📏 LED Profile Layout Guide ({profile_model_summary})" if not is_ar else f"### 📏 دليل تركيب بروفايل الليد ({profile_model_summary})")
+        
+        if "Perimeter" in profile_placement_summary or "إطار محيطي" in profile_placement_summary:
+            st.info(
+                f"- **Design Strategy:** {profile_placement_summary}.\n"
+                f"- **Perimeter Offset:** Install continuous profiles at **{offset_profile} cm** inset from all four walls (forming a clean outer lighting box).\n"
+                f"- **Linear Length:** **{profile_length_summary} meters** distributed around the room perimeter."
+                if not is_ar else
+                f"- **استراتيجية التصميم:** {profile_placement_summary}.\n"
+                f"- **الإزاحة المحيطية:** تركيب البروفايل على بُعد **{offset_profile} سم** للداخل من الجدران الأربعة (لتشكيل إطار إضاءة محيطي متناسق).\n"
+                f"- **الطول الخطي:** **{profile_length_summary} متر** موزعة حول محيط الغرفة."
+            )
+        elif "Parallel" in profile_placement_summary or "خطوط متوازية" in profile_placement_summary:
+            line_y1 = width * 0.12
+            line_y2 = width * 0.88
+            st.info(
+                f"- **Design Strategy:** {profile_placement_summary}.\n"
+                f"- **Line Spacing:** Two clean parallel profile runs positioned at **{line_y1 * 100:.1f} cm** and **{line_y2 * 100:.1f} cm** from the bottom wall (completely separated from central spotlights).\n"
+                f"- **Linear Length:** **{profile_length_summary} meters** of balanced parallel lines."
+                if not is_ar else
+                f"- **استراتيجية التصميم:** {profile_placement_summary}.\n"
+                f"- **تباعد الخطوط:** خطان بروفايل متوازيان ونظيفان في الموضع **{line_y1 * 100:.1f} سم** و **{line_y2 * 100:.1f} سم** من الجدار السفلي (مع فصل تام عن السبوتات المركزية).\n"
+                f"- **الطول الخطي:** **{profile_length_summary} متر** من الخطوط المتوازية المتزنة."
+            )
+        else:
+            st.info(
+                f"- **Design Strategy:** {profile_placement_summary}.\n"
+                f"- **Center Alignment:** Single continuous profile run along the exact center axis (**{(width * 100) / 2:.1f} cm** from side walls).\n"
+                f"- **Linear Length:** **{profile_length_summary} meters** centered across room length."
+                if not is_ar else
+                f"- **استراتيجية التصميم:** {profile_placement_summary}.\n"
+                f"- **المحاذاة المركزية:** خط بروفايل متصل في منتصف السقف تماماً (على بُعد **{(width * 100) / 2:.1f} cm** من الجدران الجانبية).\n"
+                f"- **الطول الخطي:** **{profile_length_summary} متر** في منتصف طول الغرفة."
+            )
+
+    # ==========================================
+    # PHASE 5: VISUAL FLOOR PLAN & LAYOUT DRAWING
+    # ==========================================
+    st.divider()
+    st.header(t["p5_header"])
+    st.write("Generated 2D CAD floor plan showing professional lighting positions." if not is_ar else "مخطط سقف CAD ثنائي الأبعاد يوضح مواضع الإضاءة الاحترافية.")
+
+    fig, ax = plt.subplots(figsize=(7, 7 * (width / length) if length > 0 else 7))
+    
+    # Room Boundary
+    ax.plot([0, length, length, 0, 0], [0, 0, width, width, 0], color='#2C3E50', linewidth=3, label='Room Boundary' if not is_ar else 'حدود الغرفة')
+    
+    # Spotlights (Centered cleanly in the middle field)
+    if spot_qty_summary > 0:
+        margin_x = 1.0
+        margin_y = 0.9
+        eff_len = length - (2 * margin_x)
+        eff_wid = width - (2 * margin_y)
+        
+        dx = eff_len / (cols_grid_summary + 1)
+        dy = eff_wid / (rows_grid_summary + 1)
+        
+        x_coords = [margin_x + dx * (i + 1) for i in range(cols_grid_summary)]
+        y_coords = [margin_y + dy * (j + 1) for j in range(rows_grid_summary)]
+        gx, gy = np.meshgrid(x_coords, y_coords)
+        ax.scatter(gx.flatten()[:spot_qty_summary], gy.flatten()[:spot_qty_summary], color='#E74C3C', s=120, marker='o', zorder=5, label='Spot Light' if not is_ar else 'سبوت لايت')
+
+    if track_length_summary > 0:
+        offset = 0.4
+        ax.plot([offset, length - offset], [offset, offset], color='#8E44AD', linestyle='--', linewidth=3, label='Magnetic Track' if not is_ar else 'تراك مغناطيسي')
+        ax.plot([offset, length - offset], [width - offset, width - offset], color='#8E44AD', linestyle='--', linewidth=3)
+
+    # LED Profile (Strict Interior Design Zoning - No Overlap)
+    if profile_length_summary > 0:
+        off = 0.3
+        if "Perimeter" in profile_placement_summary or "إطار محيطي" in profile_placement_summary:
+            ax.plot([off, length - off, length - off, off, off], [off, off, width - off, width - off, off], color='#27AE60', linestyle='-.', linewidth=2.5, label='LED Profile' if not is_ar else 'بروفايل ليد')
+        elif "Parallel" in profile_placement_summary or "خطوط متوازية" in profile_placement_summary:
+            ax.plot([off, length - off], [width * 0.12, width * 0.12], color='#27AE60', linestyle='-.', linewidth=2.5, label='LED Profile' if not is_ar else 'بروفايل ليد')
+            ax.plot([off, length - off], [width * 0.88, width * 0.88], color='#27AE60', linestyle='-.', linewidth=2.5)
+        else:
+            ax.plot([length * 0.15, length * 0.85], [width / 2, width / 2], color='#27AE60', linestyle='-.', linewidth=2.5, label='LED Profile' if not is_ar else 'بروفايل ليد')
+
+    if hidden_length_summary > 0:
+        ax.fill([0.1, length - 0.1, length - 0.1, 0.1, 0.1], [0.1, 0.1, width - 0.1, width - 0.1, 0.1], color='#F39C12', alpha=0.15, label='Hidden Light' if not is_ar else 'إضاءة مخفية')
+
+    ax.set_xlim(-0.5, length + 0.5)
+    ax.set_ylim(-0.5, width + 0.5)
+    ax.set_aspect('equal')
+    ax.set_title(f"Lighting Layout Plan ({length}m × {width}m)" if not is_ar else f"مخطط توزيع الإضاءة ({length}م × {width}م)", fontsize=12, fontweight='bold', pad=15)
+    ax.set_xlabel("Room Length (m)" if not is_ar else "طول الغرفة (م)", fontsize=10)
+    ax.set_ylabel("Room Width (m)" if not is_ar else "عرض الغرفة (م)", fontsize=10)
+    ax.grid(True, linestyle=':', alpha=0.6)
+    ax.legend(loc='upper right', bbox_to_anchor=(1.25, 1))
+    
+    st.pyplot(fig)
+    plt.close(fig)
+
+    st.subheader("📋 Detailed Specification Report" if not is_ar else "📋 تقرير المواصفات التفصيلي")
+    st.write(f"**Space:** {building_category} — {room_type} ({length}m × {width}m × {height}m | Area: {area:.2f} m²)" if not is_ar else f"**الفراغ:** {building_category} — {room_type} ({length}م × {width}م × {height}م | المساحة: {area:.2f} م²)")
+    
+    for item, details in fixture_specs.items():
+        st.markdown(f"- **{item}:** {details}")
