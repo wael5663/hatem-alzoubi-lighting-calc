@@ -62,13 +62,20 @@ img, canvas, svg { max-width: 100% !important; height: auto; }
         flex: 1 1 100% !important;
         min-width: 100% !important;
     }
-    /* Metrics sit two per row to save vertical space */
-    [data-testid="stColumn"]:has([data-testid="stMetric"]),
-    [data-testid="column"]:has([data-testid="stMetric"]) {
-        flex: 1 1 calc(50% - 0.5rem) !important;
-        min-width: calc(50% - 0.5rem) !important;
-        width: calc(50% - 0.5rem) !important;
+
+    /* Metrics sit two per row to save vertical space.
+       Wrapped in @supports so older mobile browsers (iOS <15.4,
+       Chrome <105, Firefox <121) fall back to stacked layout
+       instead of breaking. */
+    @supports selector(:has(*)) {
+        [data-testid="stColumn"]:has([data-testid="stMetric"]),
+        [data-testid="column"]:has([data-testid="stMetric"]) {
+            flex: 1 1 calc(50% - 0.5rem) !important;
+            min-width: calc(50% - 0.5rem) !important;
+            width: calc(50% - 0.5rem) !important;
+        }
     }
+
     [data-testid="stMetricValue"] { font-size: 1.3rem !important; }
     [data-testid="stMetricLabel"] p { font-size: 0.8rem !important; }
 }
@@ -230,6 +237,8 @@ def shr_max_for_beam(beam_deg):
     return 0.65
 
 def profile_pieces_breakdown(total_m):
+    """Split total length into standard pieces, rounding up by AT MOST one
+    extra standard piece (no more stacking of 0.5 m that overshoots badly)."""
     std = [3.0, 2.0, 1.0, 0.5]
     remaining = float(total_m)
     pieces = {}
@@ -240,7 +249,8 @@ def profile_pieces_breakdown(total_m):
                 pieces[s] = n
                 remaining -= n * s
     if remaining > 0.05:
-        pieces[0.5] = pieces.get(0.5, 0) + 1
+        smallest = min(std)
+        pieces[smallest] = pieces.get(smallest, 0) + 1
     return pieces
 
 def pieces_to_str(pieces):
@@ -256,17 +266,45 @@ def recommend_cable_size(current_A, length_m, voltage, max_drop_pct):
     return max(AMPACITY.keys()), A_min_vd
 
 def recommend_psu_size(required_w):
+    """Always returns a STRING (with 'W'), so callers can safely
+    concatenate but never accidentally multiply."""
     sizes = [60, 100, 150, 200, 300, 400, 600, 1000, 1500]
     for s in sizes:
         if s >= required_w:
-            return s
-    return f"{math.ceil(required_w/1000)}× 1000W"
+            return f"{s} W"
+    return f"{math.ceil(required_w / 1000)}× 1000 W"
 
 def safe_div(a, b, default=0):
     return a / b if b else default
 
 def safe_filename(text):
     return re.sub(r'[^\w\-]+', '_', text, flags=re.UNICODE).strip('_') or "room"
+
+# Always export an English filename: some Android file managers and
+# iOS share dialogs truncate or fail on non-ASCII filenames.
+ROOM_EN = {
+    # villa
+    "غرفة معيشة": "living_room", "غرفة نوم": "bedroom", "مطبخ": "kitchen",
+    "حمام": "bathroom", "غرفة طعام": "dining", "ممر / درج": "corridor",
+    # office
+    "مكتب مفتوح عام": "open_office", "مكتب خاص": "private_office",
+    "غرفة اجتماعات": "conference", "الاستقبال / اللوبي": "reception",
+    "ممر": "office_corridor",
+    # showroom
+    "معرض مفروشات عام": "showroom_general",
+    "واجهة العرض / منطقة مميزة": "showroom_display",
+    "منطقة الكشير / المحاسبة": "cashier",
+    "المستودع / المكتب الخلفي": "back_office",
+}
+
+# Chandelier style labels (English key -> Arabic display)
+CH_STYLE_AR = {
+    "Modern Pendant": "معلقة حديثة",
+    "Crystal": "كريستال",
+    "Linear": "خطية",
+    "Ring": "حلقية",
+    "Cluster": "تجمع",
+}
 
 # ==========================================
 # TITLE
@@ -558,9 +596,14 @@ else:
 
             elif fx == "chandelier":
                 with fc2:
-                    ch_type = st.selectbox("Chandelier Style:" if not is_ar else "ستايل الثريا:",
-                                           ["Modern Pendant", "Crystal", "Linear", "Ring", "Cluster"],
-                                           key="ch_type")
+                    # Use format_func so the underlying value stays the English key
+                    ch_label_fn = (lambda s: s) if not is_ar else (lambda s: CH_STYLE_AR.get(s, s))
+                    ch_type = st.selectbox(
+                        "Chandelier Style:" if not is_ar else "ستايل الثريا:",
+                        list(CH_STYLE_AR.keys()),
+                        format_func=ch_label_fn,
+                        key="ch_type"
+                    )
                     ch_lm = st.number_input("Total Lumens (lm):" if not is_ar else "إجمالي اللومن:",
                                             100, 20000, 3000, 100, key="ch_lm")
                     ch_w = st.number_input("Total Power (W):" if not is_ar else "إجمالي الواط:",
@@ -587,10 +630,12 @@ else:
                 )
                 total_watts += watts
                 total_lumens += delivered_lm
+
+                ch_disp = CH_STYLE_AR.get(ch_type, ch_type) if is_ar else ch_type
                 st.info(
                     f"📐 **1 Chandelier** ({ch_type}) | {delivered_lm:,.0f} lm | {watts:.0f} W"
                     if not is_ar else
-                    f"📐 **ثريا واحدة** ({ch_type}) | {delivered_lm:,.0f} lm | {watts:.0f} واط"
+                    f"📐 **ثريا واحدة** ({ch_disp}) | {delivered_lm:,.0f} lm | {watts:.0f} واط"
                 )
 
             elif fx == "track":
@@ -739,13 +784,18 @@ if results:
     if "spot" in results:
         s = results["spot"]
         st.subheader("🔍 Spot Analysis" if not is_ar else "🔍 تحليل السبوت")
+
+        # Localize the metric "delta" captions so Arabic UI stays fully Arabic
+        lim_txt = (lambda v: f"limit {v}") if not is_ar else (lambda v: f"الحد {v}")
+        u0_txt  = (lambda v: "≥0.60" if v >= 0.60 else "<0.60")
+
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("SHR" if not is_ar else "SHR", f"{s['shr']:.2f}",
-                  delta=f"limit {s['shr_lim']:.2f}")
+                  delta=lim_txt(f"{s['shr_lim']:.2f}"))
         m2.metric("U₀" if not is_ar else "U₀", f"{s['u0']:.2f}",
-                  delta="≥0.60" if s['u0'] >= 0.60 else "<0.60")
+                  delta=u0_txt(s['u0']))
         m3.metric("UGR" if not is_ar else "UGR", f"{s['ugr']}",
-                  delta=f"limit {target_ugr}")
+                  delta=lim_txt(target_ugr))
         m4.metric("Beam" if not is_ar else "الشعاع", f"{s['beam']}°")
 
     st.caption("📌 Lumen method estimate. Verify with DIALux/Relux for final design." if not is_ar
@@ -774,10 +824,11 @@ if results:
     e3.metric("PF (worst)" if not is_ar else "PF (الأسوأ)", f"{pf_system:.2f}")
     e4.metric("Current" if not is_ar else "التيار", f"{current_total:.1f} A")
 
+    # recommend_psu_size() now returns a string WITH 'W' already appended
     psu_size = recommend_psu_size(design_load)
-    st.info(f"🔋 **Recommended PSU/Driver:** {psu_size} W "
+    st.info(f"🔋 **Recommended PSU/Driver:** {psu_size} "
             f"(connected × 1.20)" if not is_ar
-            else f"🔋 **PSU/Driver المقترح:** {psu_size} واط "
+            else f"🔋 **PSU/Driver المقترح:** {psu_size} "
             f"(الموصول × 1.20)")
 
     st.subheader("🔌 Circuits & Protection" if not is_ar
@@ -881,10 +932,25 @@ if results:
     st.divider()
     st.header("Phase 6: Layout Drawing" if not is_ar
               else "المرحلة 6: المخطط")
+
+    # Localized plot labels so the chart matches the RTL UI
+    if is_ar:
+        L_ROOM, L_SPOT, L_CH, L_TRACK, L_PROF, L_HID = (
+            "الغرفة", "سبوت", "ثريا", "تراك", "بروفايل", "إضاءة مخفية"
+        )
+        TITLE_TXT = f"مخطط الإنارة ({length}م × {width}م)"
+        XLAB, YLAB = "الطول (م)", "العرض (م)"
+    else:
+        L_ROOM, L_SPOT, L_CH, L_TRACK, L_PROF, L_HID = (
+            "Room", "Spot", "Chandelier", "Track", "Profile", "Hidden"
+        )
+        TITLE_TXT = f"Lighting Layout ({length}m × {width}m)"
+        XLAB, YLAB = "Length (m)", "Width (m)"
+
     fig_h = min(9.0, max(2.5, 7 * safe_div(width, length, 1)))
     fig, ax = plt.subplots(figsize=(7, fig_h))
     ax.plot([0, length, length, 0, 0], [0, 0, width, width, 0],
-            color='#2C3E50', linewidth=3, label='Room')
+            color='#2C3E50', linewidth=3, label=L_ROOM)
 
     if "spot" in results:
         s = results["spot"]
@@ -892,10 +958,11 @@ if results:
         yc = [s['margin_y'] + s['step_y'] * j for j in range(s['rows'])]
         gx, gy = np.meshgrid(xc, yc)
         ax.scatter(gx.flatten()[:s['qty']], gy.flatten()[:s['qty']],
-                   color='#E74C3C', s=120, marker='o', zorder=5, label='Spot')
+                   color='#E74C3C', s=120, marker='o', zorder=5, label=L_SPOT)
 
     if "chandelier" in results:
-        ax.scatter([length/2], [width/2], color='#F1C40F', s=600, marker='*', zorder=6, label='Chandelier')
+        ax.scatter([length/2], [width/2], color='#F1C40F', s=600, marker='*',
+                   zorder=6, label=L_CH)
 
     if "track" in results:
         t = results["track"]
@@ -916,7 +983,7 @@ if results:
                     ([o, o], [o, width - o])]
         for i, (xs, ys) in enumerate(segs):
             ax.plot(xs, ys, color='#8E44AD', linestyle='--', linewidth=3,
-                    label='Track' if i == 0 else None)
+                    label=L_TRACK if i == 0 else None)
 
     if "profile" in results:
         p = results["profile"]
@@ -924,27 +991,30 @@ if results:
         if p['placement'] == "Perimeter":
             ax.plot([off, length - off, length - off, off, off],
                     [off, off, width - off, width - off, off],
-                    color='#27AE60', linestyle='-.', linewidth=2.5, label='Profile')
+                    color='#27AE60', linestyle='-.', linewidth=2.5, label=L_PROF)
         elif p['placement'] == "Parallel Lines":
             ax.plot([off, length - off], [width * 0.12, width * 0.12],
-                    color='#27AE60', linestyle='-.', linewidth=2.5, label='Profile')
+                    color='#27AE60', linestyle='-.', linewidth=2.5, label=L_PROF)
             ax.plot([off, length - off], [width * 0.88, width * 0.88],
                     color='#27AE60', linestyle='-.', linewidth=2.5)
         else:
             ax.plot([length * 0.15, length * 0.85], [width / 2, width / 2],
-                    color='#27AE60', linestyle='-.', linewidth=2.5, label='Profile')
+                    color='#27AE60', linestyle='-.', linewidth=2.5, label=L_PROF)
+
     if "hidden" in results:
         ax.fill([0.1, length - 0.1, length - 0.1, 0.1, 0.1],
                 [0.1, 0.1, width - 0.1, width - 0.1, 0.1],
-                color='#F39C12', alpha=0.15, label='Hidden')
+                color='#F39C12', alpha=0.15, label=L_HID)
+
     ax.set_xlim(-0.5, length + 0.5)
     ax.set_ylim(-0.5, width + 0.5)
     ax.set_aspect('equal')
-    ax.set_title(f"Lighting Layout ({length}m × {width}m)", fontsize=10)
-    ax.set_xlabel("Length (m)")
-    ax.set_ylabel("Width (m)")
+    ax.set_title(TITLE_TXT, fontsize=10)
+    ax.set_xlabel(XLAB)
+    ax.set_ylabel(YLAB)
     ax.grid(True, linestyle=':', alpha=0.6)
-    ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.18), ncol=3, fontsize=8, frameon=False)
+    ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.18),
+              ncol=3, fontsize=8, frameon=False)
     st.pyplot(fig, use_container_width=True)
     plt.close(fig)
 
@@ -970,9 +1040,10 @@ if results:
 
     if "chandelier" in results:
         c = results["chandelier"]
+        ch_boq = CH_STYLE_AR.get(c['ch_type'], c['ch_type']) if is_ar else c['ch_type']
         boq_rows.append([
             "Chandelier",
-            f"{c['ch_type']}, {c['lm']}lm, {c['cct']}K, Ra{c['cri']}, PF {c['pf']:.2f}",
+            f"{ch_boq}, {c['lm']}lm, {c['cct']}K, Ra{c['cri']}, PF {c['pf']:.2f}",
             "1 pc",
             f"{c['watts']:.0f} W"
         ])
@@ -1018,7 +1089,8 @@ if results:
         ["Design Load (+20%)", f"{design_load:.0f} W", "", ""],
         ["System PF (worst)", f"{pf_system:.2f}", "", ""],
         ["Current", f"{current_total:.1f} A @ {SUPPLY_V}V", "", ""],
-        ["PSU/Driver", f"{psu_size} W", "", ""],
+        # psu_size already ends with 'W'
+        ["PSU/Driver", f"{psu_size}", "", ""],
         ["Circuits", f"{num_circuits} × {BREAKER_A}A Type-C", "", ""],
         ["Main Cable", f"{cable_size} mm² Cu (V-drop ≤{CABLE_MAX_DROP}%)", "", ""],
         ["RCD", "30 mA mandatory (IEC 60364-4-41)", "", ""],
@@ -1035,10 +1107,13 @@ if results:
 
     csv_buf = io.StringIO()
     csv.writer(csv_buf).writerows(boq_rows)
+
+    # Always save with an English filename (ASCII-safe for Android/iOS downloads)
+    safe_room = ROOM_EN.get(room_type, safe_filename(room_type))
     st.download_button(
         "📥 Download BOQ (CSV)" if not is_ar else "📥 تحميل جدول الكميات (CSV)",
         data=csv_buf.getvalue().encode('utf-8-sig'),
-        file_name=f"lighting_boq_{safe_filename(room_type)}.csv",
+        file_name=f"lighting_boq_{safe_room}.csv",
         mime="text/csv"
     )
     st.caption(
