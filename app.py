@@ -38,27 +38,21 @@ if is_ar:
             direction: rtl !important;
         }
         
-        /* 2. منع تقطع الحروف (حل مشكلة Language و العناوين) */
-        p, label, h1, h2, h3, h4, h5, h6, span, div {
-            direction: rtl !important; 
+        /* 2. محاذاة النصوص فقط (بدون تخريب أعمدة التصميم) */
+        h1, h2, h3, h4, h5, h6, p, label, .stMarkdown {
             text-align: right !important;
-            word-break: normal !important;
-            overflow-wrap: normal !important;
-            white-space: normal !important;
         }
 
-        /* 3. المحاذاة لليمين للقوائم المنسدلة والمدخلات */
-        .stSelectbox label, .stNumberInput label, .stSlider label, .stMultiSelect label {
-            direction: rtl !important; 
+        /* 3. محاذاة عناوين الحقول لليمين */
+        [data-testid="stWidgetLabel"] {
             text-align: right !important;
-            /* تمت إزالة float: right لأنها كانت تسبب انقسام الشاشة على الموبايل */
         }
 
-        /* 4. إصلاح الأرقام */
+        /* 4. إصلاح الأرقام (لتكون من اليسار لليمين كي لا تُقطع) */
         [data-testid="stMetricValue"] {
             direction: ltr !important;
             text-align: right !important;
-            font-size: 1.4rem !important; 
+            font-size: 1.6rem !important; 
         }
         [data-testid="stMetricLabel"] {
             direction: rtl !important;
@@ -69,9 +63,9 @@ if is_ar:
             text-align: right !important;
         }
 
-        /* 5. شروط خاصة للشاشات الصغيرة (الموبايل) */
+        /* 5. شروط خاصة بالشاشات الصغيرة (الموبايل) */
         @media (max-width: 768px) {
-            /* تصغير حجم العناوين لتتناسب مع الموبايل */
+            /* تصغير العناوين الرئيسية */
             h1 {
                 font-size: 1.3rem !important;
                 text-align: center !important;
@@ -80,19 +74,19 @@ if is_ar:
             h2 { font-size: 1.2rem !important; }
             h3 { font-size: 1.1rem !important; }
             
-            /* جعل الأعمدة تترتب فوق بعضها بدلاً من الانضغاط */
+            /* ⚠️ الأهم: جعل الأعمدة تترتب فوق بعضها بدلاً من الانضغاط */
             [data-testid="column"] {
                 width: 100% !important;
                 flex: 1 1 100% !important;
                 min-width: 100% !important;
-                margin-bottom: 10px !important;
+                margin-bottom: 15px !important;
             }
             
             /* ضبط هوامش الصفحة على الموبايل */
             .block-container {
                 padding-left: 10px !important;
                 padding-right: 10px !important;
-                padding-top: 10px !important;
+                padding-top: 1rem !important;
             }
         }
         </style>
