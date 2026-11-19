@@ -25,7 +25,7 @@ AMPACITY = {1.0: 11.0, 1.5: 14.5, 2.5: 19.5, 4.0: 26.0,
             6.0: 34.0, 10.0: 46.0, 16.0: 61.0}
 
 # ==========================================
-# LANGUAGE & CSS FIX
+# LANGUAGE & CSS FIX (Mobile Responsive)
 # ==========================================
 LANG = st.sidebar.selectbox("🌐 Language / اللغة", ["English", "العربية"])
 is_ar = (LANG == "العربية")
@@ -33,22 +33,32 @@ is_ar = (LANG == "العربية")
 if is_ar:
     st.markdown("""
         <style>
+        /* 1. اتجاه الصفحة الأساسي من اليمين لليسار */
         .stApp, [data-testid="stAppViewContainer"], [data-testid="stSidebar"], .main {
             direction: rtl !important;
         }
-        p, label, h1, h2, h3, h4, h5, h6 {
+        
+        /* 2. منع تقطع الحروف (حل مشكلة Language و العناوين) */
+        p, label, h1, h2, h3, h4, h5, h6, span, div {
             direction: rtl !important; 
             text-align: right !important;
+            word-break: normal !important;
+            overflow-wrap: normal !important;
+            white-space: normal !important;
         }
+
+        /* 3. المحاذاة لليمين للقوائم المنسدلة والمدخلات */
         .stSelectbox label, .stNumberInput label, .stSlider label, .stMultiSelect label {
             direction: rtl !important; 
             text-align: right !important;
-            float: right !important;
+            /* تمت إزالة float: right لأنها كانت تسبب انقسام الشاشة على الموبايل */
         }
+
+        /* 4. إصلاح الأرقام */
         [data-testid="stMetricValue"] {
             direction: ltr !important;
             text-align: right !important;
-            font-size: 1.6rem !important; 
+            font-size: 1.4rem !important; 
         }
         [data-testid="stMetricLabel"] {
             direction: rtl !important;
@@ -57,6 +67,33 @@ if is_ar:
         [data-testid="stMetricDelta"] {
             direction: ltr !important;
             text-align: right !important;
+        }
+
+        /* 5. شروط خاصة للشاشات الصغيرة (الموبايل) */
+        @media (max-width: 768px) {
+            /* تصغير حجم العناوين لتتناسب مع الموبايل */
+            h1 {
+                font-size: 1.3rem !important;
+                text-align: center !important;
+                line-height: 1.4 !important;
+            }
+            h2 { font-size: 1.2rem !important; }
+            h3 { font-size: 1.1rem !important; }
+            
+            /* جعل الأعمدة تترتب فوق بعضها بدلاً من الانضغاط */
+            [data-testid="column"] {
+                width: 100% !important;
+                flex: 1 1 100% !important;
+                min-width: 100% !important;
+                margin-bottom: 10px !important;
+            }
+            
+            /* ضبط هوامش الصفحة على الموبايل */
+            .block-container {
+                padding-left: 10px !important;
+                padding-right: 10px !important;
+                padding-top: 10px !important;
+            }
         }
         </style>
     """, unsafe_allow_html=True)
@@ -272,7 +309,6 @@ st.markdown("---")
 # ==========================================
 st.header("Phase 2: Lighting Fixtures" if not is_ar else "المرحلة 2: وحدات الإضاءة")
 
-# ⚠️ تمت إضافة الثريا هنا
 FX = {"spot": "Spot Light", "track": "Magnetic Track",
       "profile": "LED Profile", "hidden": "Hidden Light",
       "chandelier": "Chandelier"}
@@ -330,7 +366,6 @@ else:
                 cri_label = st.selectbox("CRI:" if not is_ar else "CRI:",
                                           list(CRI_OPTIONS.keys()), key=f"{fx}_cri")
                 
-                # Beam angle is not relevant for chandelier, so we default it
                 if fx == "chandelier":
                     beam_deg = 90
                     pf = st.number_input(
@@ -452,7 +487,6 @@ else:
                     f"(الحد {shr_lim:.2f}) | U₀ ≈ {u0:.2f} | UGR ≈ {ugr}"
                 )
 
-            # ⚠️ كود الثريا الجديد (قطعة واحدة فقط)
             elif fx == "chandelier":
                 with fc2:
                     ch_type = st.selectbox("Chandelier Style:" if not is_ar else "ستايل الثريا:",
@@ -463,7 +497,7 @@ else:
                     ch_w = st.number_input("Total Power (W):" if not is_ar else "إجمالي الواط:",
                                            5.0, 500.0, 60.0, 5.0, key="ch_w")
 
-                qty = 1  # كمية ثابتة
+                qty = 1
                 delivered_lm = ch_lm
                 watts = ch_w
                 
@@ -787,7 +821,6 @@ if results:
         ax.scatter(gx.flatten()[:s['qty']], gy.flatten()[:s['qty']],
                    color='#E74C3C', s=120, marker='o', zorder=5, label='Spot')
                    
-    # ⚠️ رسم الثريا في المنتصف
     if "chandelier" in results:
         ax.scatter([length/2], [width/2], color='#F1C40F', s=600, marker='*', zorder=6, label='Chandelier')
 
@@ -846,7 +879,6 @@ if results:
         ["Item", "Specification", "Quantity", "Load"],
     ]
     
-    # ⚠️ إضافة الثريا في جدول الكميات
     if "chandelier" in results:
         c = results["chandelier"]
         boq_rows.append([
