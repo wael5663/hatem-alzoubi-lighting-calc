@@ -64,9 +64,7 @@ img, canvas, svg { max-width: 100% !important; height: auto; }
     }
 
     /* Metrics sit two per row to save vertical space.
-       Wrapped in @supports so older mobile browsers (iOS <15.4,
-       Chrome <105, Firefox <121) fall back to stacked layout
-       instead of breaking. */
+       Wrapped in @supports so older mobile browsers fall back safely. */
     @supports selector(:has(*)) {
         [data-testid="stColumn"]:has([data-testid="stMetric"]),
         [data-testid="column"]:has([data-testid="stMetric"]) {
@@ -83,7 +81,7 @@ img, canvas, svg { max-width: 100% !important; height: auto; }
 """
 st.markdown(COMMON_CSS, unsafe_allow_html=True)
 
-# --- Arabic / RTL rules ---
+# --- Arabic / RTL rules (FIXED FOR MOBILE) ---
 if is_ar:
     st.markdown("""
         <style>
@@ -93,35 +91,26 @@ if is_ar:
         .stApp, [data-testid="stAppViewContainer"], [data-testid="stSidebar"],
         [data-testid="stSidebarContent"], [data-testid="stMain"], .main {
             direction: rtl !important;
-        }
-        .stApp, .stApp p, .stApp label, .stApp h1, .stApp h2, .stApp h3,
-        .stApp h4, .stApp li, .stApp button, .stApp input, .stApp textarea,
-        .stApp span, .stApp div {
-            font-family: 'Cairo', 'Segoe UI', Tahoma, Arial, sans-serif;
-        }
-        /* keep Streamlit icon fonts untouched */
-        .stApp [data-testid="stIconMaterial"], .stApp .material-icons,
-        .stApp span[class*="material"] {
-            font-family: 'Material Symbols Rounded', 'Material Icons' !important;
+            font-family: 'Cairo', 'Segoe UI', Tahoma, Arial, sans-serif !important;
         }
 
-        /* 2. Top toolbar/header stays LTR so the sidebar button doesn't flip */
-        header[data-testid="stHeader"] { direction: ltr !important; }
+        /* 2. Fix Arabic Text Overlaps (Crucial for mobile) */
+        h1, h2, h3, h4, h5, h6, p, label, li, .stMarkdown, .stCaption, .stApp div {
+            line-height: 1.6 !important;
+            word-break: break-word !important;
+        }
 
-        /* 3. Text alignment */
+        /* 3. Text alignment (Removed breaking width: 100% rule) */
         h1, h2, h3, h4, h5, h6, p, label, li, .stMarkdown, .stCaption,
         [data-testid="stWidgetLabel"], [data-testid="stCaptionContainer"] {
             text-align: right !important;
+            unicode-bidi: plaintext;
         }
-        [data-testid="stWidgetLabel"] { width: 100%; justify-content: flex-end; }
 
         /* 4. Mixed Arabic/English/number lines: resolve direction per line */
         [data-testid="stAlert"] p, [data-testid="stAlert"] li,
         [data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] li {
             unicode-bidi: plaintext;
-        }
-        [data-testid="stAlert"] ul, [data-testid="stMarkdownContainer"] ul {
-            padding-right: 1.4rem; padding-left: 0;
         }
 
         /* 5. Metrics: numbers LTR so they never get clipped/reversed */
@@ -133,21 +122,26 @@ if is_ar:
         [data-testid="stMetricLabel"] { direction: rtl !important; text-align: right !important; }
         [data-testid="stMetricDelta"] { direction: ltr !important; justify-content: flex-end; }
 
-        /* 6. Sliders: RTL breaks BaseWeb slider math -> keep the track LTR */
+        /* 6. Sliders: keep track LTR */
         [data-testid="stSlider"] { direction: ltr !important; }
         [data-testid="stSlider"] [data-testid="stWidgetLabel"],
         [data-testid="stSlider"] label {
             direction: rtl !important; text-align: right !important;
         }
-        [data-testid="stSlider"] [data-testid="stTickBar"] { direction: ltr !important; }
 
         /* 7. Number inputs: digits LTR */
         [data-testid="stNumberInput"] input {
             direction: ltr !important; text-align: right !important;
         }
 
-        /* 8. Selectbox / multiselect + their dropdown popovers (rendered in a portal) */
-        [data-baseweb="select"], [data-baseweb="select"] > div { direction: rtl !important; }
+        /* 8. Selectbox / multiselect + dropdowns (PREVENTS VERTICAL TEXT) */
+        [data-baseweb="select"] > div {
+            flex-direction: row-reverse !important; /* Arrow on left */
+            flex-wrap: nowrap !important;          /* Stops vertical squishing */
+        }
+        [data-baseweb="select"] span {
+            white-space: nowrap !important;        /* Forces one line */
+        }
         div[data-baseweb="popover"], div[data-baseweb="popover"] ul,
         div[data-baseweb="popover"] li, ul[role="listbox"], li[role="option"] {
             direction: rtl !important; text-align: right !important;
@@ -164,7 +158,7 @@ if is_ar:
 
         /* 12. Small screens */
         @media (max-width: 768px) {
-            h1 { text-align: center !important; }
+            h1 { text-align: center !important; font-size: 1.4rem !important; }
             [data-testid="stSidebar"] { max-width: 85vw !important; }
             [data-baseweb="select"] div, .stApp input { font-size: 16px !important; } /* stops iOS zoom */
         }
@@ -237,8 +231,6 @@ def shr_max_for_beam(beam_deg):
     return 0.65
 
 def profile_pieces_breakdown(total_m):
-    """Split total length into standard pieces, rounding up by AT MOST one
-    extra standard piece (no more stacking of 0.5 m that overshoots badly)."""
     std = [3.0, 2.0, 1.0, 0.5]
     remaining = float(total_m)
     pieces = {}
@@ -266,8 +258,6 @@ def recommend_cable_size(current_A, length_m, voltage, max_drop_pct):
     return max(AMPACITY.keys()), A_min_vd
 
 def recommend_psu_size(required_w):
-    """Always returns a STRING (with 'W'), so callers can safely
-    concatenate but never accidentally multiply."""
     sizes = [60, 100, 150, 200, 300, 400, 600, 1000, 1500]
     for s in sizes:
         if s >= required_w:
@@ -280,30 +270,19 @@ def safe_div(a, b, default=0):
 def safe_filename(text):
     return re.sub(r'[^\w\-]+', '_', text, flags=re.UNICODE).strip('_') or "room"
 
-# Always export an English filename: some Android file managers and
-# iOS share dialogs truncate or fail on non-ASCII filenames.
 ROOM_EN = {
-    # villa
     "غرفة معيشة": "living_room", "غرفة نوم": "bedroom", "مطبخ": "kitchen",
     "حمام": "bathroom", "غرفة طعام": "dining", "ممر / درج": "corridor",
-    # office
     "مكتب مفتوح عام": "open_office", "مكتب خاص": "private_office",
     "غرفة اجتماعات": "conference", "الاستقبال / اللوبي": "reception",
-    "ممر": "office_corridor",
-    # showroom
-    "معرض مفروشات عام": "showroom_general",
+    "ممر": "office_corridor", "معرض مفروشات عام": "showroom_general",
     "واجهة العرض / منطقة مميزة": "showroom_display",
-    "منطقة الكشير / المحاسبة": "cashier",
-    "المستودع / المكتب الخلفي": "back_office",
+    "منطقة الكشير / المحاسبة": "cashier", "المستودع / المكتب الخلفي": "back_office",
 }
 
-# Chandelier style labels (English key -> Arabic display)
 CH_STYLE_AR = {
-    "Modern Pendant": "معلقة حديثة",
-    "Crystal": "كريستال",
-    "Linear": "خطية",
-    "Ring": "حلقية",
-    "Cluster": "تجمع",
+    "Modern Pendant": "معلقة حديثة", "Crystal": "كريستال",
+    "Linear": "خطية", "Ring": "حلقية", "Cluster": "تجمع",
 }
 
 # ==========================================
@@ -596,7 +575,6 @@ else:
 
             elif fx == "chandelier":
                 with fc2:
-                    # Use format_func so the underlying value stays the English key
                     ch_label_fn = (lambda s: s) if not is_ar else (lambda s: CH_STYLE_AR.get(s, s))
                     ch_type = st.selectbox(
                         "Chandelier Style:" if not is_ar else "ستايل الثريا:",
@@ -785,7 +763,6 @@ if results:
         s = results["spot"]
         st.subheader("🔍 Spot Analysis" if not is_ar else "🔍 تحليل السبوت")
 
-        # Localize the metric "delta" captions so Arabic UI stays fully Arabic
         lim_txt = (lambda v: f"limit {v}") if not is_ar else (lambda v: f"الحد {v}")
         u0_txt  = (lambda v: "≥0.60" if v >= 0.60 else "<0.60")
 
@@ -824,7 +801,6 @@ if results:
     e3.metric("PF (worst)" if not is_ar else "PF (الأسوأ)", f"{pf_system:.2f}")
     e4.metric("Current" if not is_ar else "التيار", f"{current_total:.1f} A")
 
-    # recommend_psu_size() now returns a string WITH 'W' already appended
     psu_size = recommend_psu_size(design_load)
     st.info(f"🔋 **Recommended PSU/Driver:** {psu_size} "
             f"(connected × 1.20)" if not is_ar
@@ -869,7 +845,6 @@ if results:
     if "hidden" in results:
         h = results["hidden"]
         strip_v = h["voltage"]
-        # DC low-voltage side: current = P / V (power factor does not apply)
         strip_current = h["watts"] / strip_v
         for cross in [1.5, 2.5, 4.0, 6.0]:
             vd = (2 * h["length"] * strip_current * CABLE_RHO) / cross
@@ -933,7 +908,6 @@ if results:
     st.header("Phase 6: Layout Drawing" if not is_ar
               else "المرحلة 6: المخطط")
 
-    # Localized plot labels so the chart matches the RTL UI
     if is_ar:
         L_ROOM, L_SPOT, L_CH, L_TRACK, L_PROF, L_HID = (
             "الغرفة", "سبوت", "ثريا", "تراك", "بروفايل", "إضاءة مخفية"
@@ -1089,7 +1063,6 @@ if results:
         ["Design Load (+20%)", f"{design_load:.0f} W", "", ""],
         ["System PF (worst)", f"{pf_system:.2f}", "", ""],
         ["Current", f"{current_total:.1f} A @ {SUPPLY_V}V", "", ""],
-        # psu_size already ends with 'W'
         ["PSU/Driver", f"{psu_size}", "", ""],
         ["Circuits", f"{num_circuits} × {BREAKER_A}A Type-C", "", ""],
         ["Main Cable", f"{cable_size} mm² Cu (V-drop ≤{CABLE_MAX_DROP}%)", "", ""],
@@ -1108,7 +1081,6 @@ if results:
     csv_buf = io.StringIO()
     csv.writer(csv_buf).writerows(boq_rows)
 
-    # Always save with an English filename (ASCII-safe for Android/iOS downloads)
     safe_room = ROOM_EN.get(room_type, safe_filename(room_type))
     st.download_button(
         "📥 Download BOQ (CSV)" if not is_ar else "📥 تحميل جدول الكميات (CSV)",
