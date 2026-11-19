@@ -86,7 +86,7 @@ if is_ar:
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
 
-        /* 1. Base direction + font (Removed Sidebar from here to prevent flexbox bugs) */
+        /* 1. Base direction + font */
         .stApp, [data-testid="stAppViewContainer"], [data-testid="stSidebarContent"], [data-testid="stMain"], .main {
             direction: rtl !important;
             font-family: 'Cairo', 'Segoe UI', Tahoma, Arial, sans-serif !important;
@@ -132,13 +132,13 @@ if is_ar:
             direction: ltr !important; text-align: right !important;
         }
 
-        /* 8. Selectbox / multiselect + dropdowns (PREVENTS VERTICAL TEXT) */
+        /* 8. Selectbox / multiselect + dropdowns */
         [data-baseweb="select"] > div {
-            flex-direction: row-reverse !important; /* Arrow on left */
-            flex-wrap: nowrap !important;          /* Stops vertical squishing */
+            flex-direction: row-reverse !important;
+            flex-wrap: nowrap !important;
         }
         [data-baseweb="select"] span {
-            white-space: nowrap !important;        /* Forces one line */
+            white-space: nowrap !important;
         }
         div[data-baseweb="popover"], div[data-baseweb="popover"] ul,
         div[data-baseweb="popover"] li, ul[role="listbox"], li[role="option"] {
@@ -158,23 +158,20 @@ if is_ar:
         @media (max-width: 768px) {
             h1 { text-align: center !important; font-size: 1.4rem !important; }
             [data-testid="stSidebar"] { max-width: 85vw !important; }
-            [data-baseweb="select"] div, .stApp input { font-size: 16px !important; } /* stops iOS zoom */
+            [data-baseweb="select"] div, .stApp input { font-size: 16px !important; }
         }
 
         /* 13. FIX SIDEBAR STUCK ON SCREEN IN RTL MOBILE */
         @media (max-width: 768px) {
-            /* Force sidebar to anchor on the right and slide off-screen to the right */
             [data-testid="stSidebar"] {
                 right: 0 !important;
                 left: auto !important;
                 transform: translateX(100%) !important;
                 transition: transform 0.3s ease-in-out !important;
             }
-            /* When opened by the user, bring it back to the screen */
             [data-testid="stSidebar"][aria-expanded="true"] {
                 transform: translateX(0) !important;
             }
-            /* Move the 'X' close button to the left side of the RTL sidebar */
             [data-testid="stSidebar"] button[kind="header"] {
                 left: 0 !important;
                 right: auto !important;
@@ -958,24 +955,44 @@ if results:
 
     if "track" in results:
         t = results["track"]
-        o = 0.4
+        
+        # STRUCTURED TRACK LOCATIONS (INTERIOR DESIGN PERSPECTIVE)
+        # Move parallel tracks close to the walls (15% / 85%) to wash walls,
+        # while keeping the spot grid in the center of the room.
+        o = 0.45 # 45cm from wall
         lay = t['layout']
         along_x = length >= width
         segs = []
+        
         if lay == "Straight (Center)":
-            segs = [([o, length - o], [width / 2] * 2)] if along_x \
-                else [([length / 2] * 2, [o, width - o])]
+            # If spots exist, shift the center track slightly so it doesn't visually overlap the spot dots
+            center_offset = 0.15 if "spot" in results else 0.0
+            if along_x:
+                segs = [([o, length - o], [width / 2 + center_offset] * 2)]
+            else:
+                segs = [([length / 2 + center_offset] * 2, [o, width - o])]
+                
         elif lay == "Parallel (2)":
-            segs = [([o, length - o], [width * 0.25] * 2), ([o, length - o], [width * 0.75] * 2)] if along_x \
-                else [([length * 0.25] * 2, [o, width - o]), ([length * 0.75] * 2, [o, width - o])]
+            if along_x:
+                segs = [([o, length - o], [width * 0.15] * 2), 
+                        ([o, length - o], [width * 0.85] * 2)]
+            else:
+                segs = [([length * 0.15] * 2, [o, width - o]), 
+                        ([length * 0.85] * 2, [o, width - o])]
+                
         elif lay == "L-Shape":
-            segs = [([o, length - o], [o, o]), ([o, o], [o, width - o])]
-        else:  # U-Shape
-            segs = [([o, length - o], [o, o]), ([o, length - o], [width - o, width - o]),
+            segs = [([o, length - o], [o, o]), 
                     ([o, o], [o, width - o])]
+        else:  # U-Shape
+            segs = [([o, length - o], [o, o]), 
+                    ([o, length - o], [width - o, width - o]),
+                    ([o, o], [o, width - o])]
+                    
         for i, (xs, ys) in enumerate(segs):
-            ax.plot(xs, ys, color='#8E44AD', linestyle='--', linewidth=3,
-                    label=L_TRACK if i == 0 else None)
+            # alpha=0.65 makes the track semi-transparent so spot dots sit visibly on top
+            # zorder=4 keeps the track behind the spots (zorder=5)
+            ax.plot(xs, ys, color='#8E44AD', linestyle='--', linewidth=3, 
+                    alpha=0.65, zorder=4, label=L_TRACK if i == 0 else None)
 
     if "profile" in results:
         p = results["profile"]
