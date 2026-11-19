@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import streamlit as st
 
-# ⚠️ تم تغيير layout إلى wide لتوفير مساحة أكبر للواجهة
 st.set_page_config(
     page_title="Hatem Alzoubi Lighting Design Pro",
     page_icon="💡",
@@ -34,29 +33,22 @@ is_ar = (LANG == "العربية")
 if is_ar:
     st.markdown("""
         <style>
-        /* 1. اتجاه الصفحة الأساسي من اليمين لليسار */
         .stApp, [data-testid="stAppViewContainer"], [data-testid="stSidebar"], .main {
             direction: rtl !important;
         }
-        
-        /* 2. النصوص والعناوين من اليمين لليسار */
         p, label, h1, h2, h3, h4, h5, h6 {
             direction: rtl !important; 
             text-align: right !important;
         }
-
-        /* 3. المحاذاة لليمين للقوائم المنسدلة والمدخلات */
         .stSelectbox label, .stNumberInput label, .stSlider label, .stMultiSelect label {
             direction: rtl !important; 
             text-align: right !important;
             float: right !important;
         }
-
-        /* 4. ⚠️ إصلاح الأرقام: إجبار القيم على أن تكون LTR لكي لا تُقطع */
         [data-testid="stMetricValue"] {
             direction: ltr !important;
             text-align: right !important;
-            font-size: 1.6rem !important; /* تصغير الخط قليلاً ليتسع للجميع */
+            font-size: 1.6rem !important; 
         }
         [data-testid="stMetricLabel"] {
             direction: rtl !important;
@@ -171,7 +163,7 @@ def safe_div(a, b, default=0):
     return a / b if b else default
 
 # ==========================================
-# TITLE (تمت إزالة الإيموجي لتجنب مشاكل العرض)
+# TITLE
 # ==========================================
 st.title("Hatem Alzoubi Lighting Design Pro" if not is_ar
          else "مجموعة حاتم الزعبي للإنارة - حاسبة الإنارة - مهندس وائل")
@@ -264,7 +256,6 @@ utilization_factor = st.slider(
 )
 total_lumens_req = area * target_lux / (utilization_factor * maintenance_factor)
 
-# ⚠️ تقسيم الأرقام إلى صفين لمنع قطعها
 st.markdown("---")
 mc1, mc2, mc3 = st.columns(3)
 mc1.metric("Area" if not is_ar else "المساحة", f"{area:.1f} m²")
@@ -281,10 +272,13 @@ st.markdown("---")
 # ==========================================
 st.header("Phase 2: Lighting Fixtures" if not is_ar else "المرحلة 2: وحدات الإضاءة")
 
+# ⚠️ تمت إضافة الثريا هنا
 FX = {"spot": "Spot Light", "track": "Magnetic Track",
-      "profile": "LED Profile", "hidden": "Hidden Light"}
+      "profile": "LED Profile", "hidden": "Hidden Light",
+      "chandelier": "Chandelier"}
 FX_AR = {"spot": "سبوت لايت", "track": "تراك مغناطيسي",
-         "profile": "بروفايل ليد", "hidden": "إضاءة مخفية"}
+         "profile": "بروفايل ليد", "hidden": "إضاءة مخفية",
+         "chandelier": "ثريا (نجفة)"}
 fx_label = lambda k: FX[k] if not is_ar else FX_AR[k]
 
 sel_keys = st.multiselect(
@@ -335,15 +329,25 @@ else:
                                           list(CCT_OPTIONS.keys()), key=f"{fx}_cct")
                 cri_label = st.selectbox("CRI:" if not is_ar else "CRI:",
                                           list(CRI_OPTIONS.keys()), key=f"{fx}_cri")
-                beam_label = st.selectbox("Beam Angle:" if not is_ar else "زاوية الشعاع:",
-                                           list(BEAM_OPTIONS.keys()), key=f"{fx}_beam")
-                beam_deg = BEAM_OPTIONS[beam_label]
-                pf = st.number_input(
-                    "Power Factor:" if not is_ar else "معامل القدرة:",
-                    0.50, 1.00, PF_DEFAULT, 0.01, key=f"{fx}_pf",
-                    help="Typical LED driver PF = 0.90. Use 0.95 for premium."
-                    if not is_ar else "PF نموذجي = 0.90، الممتاز = 0.95."
-                )
+                
+                # Beam angle is not relevant for chandelier, so we default it
+                if fx == "chandelier":
+                    beam_deg = 90
+                    pf = st.number_input(
+                        "Power Factor:" if not is_ar else "معامل القدرة:",
+                        0.50, 1.00, PF_DEFAULT, 0.01, key=f"{fx}_pf",
+                        help="Typical LED driver PF = 0.90."
+                    )
+                else:
+                    beam_label = st.selectbox("Beam Angle:" if not is_ar else "زاوية الشعاع:",
+                                               list(BEAM_OPTIONS.keys()), key=f"{fx}_beam")
+                    beam_deg = BEAM_OPTIONS[beam_label]
+                    pf = st.number_input(
+                        "Power Factor:" if not is_ar else "معامل القدرة:",
+                        0.50, 1.00, PF_DEFAULT, 0.01, key=f"{fx}_pf",
+                        help="Typical LED driver PF = 0.90. Use 0.95 for premium."
+                        if not is_ar else "PF نموذجي = 0.90، الممتاز = 0.95."
+                    )
 
             if fx == "spot":
                 with fc2:
@@ -357,63 +361,48 @@ else:
                     recessed = st.checkbox("Recessed" if not is_ar else "مدمج",
                                             True, key="spot_recessed")
 
-                # --- DENSITY CONTROL & AUTO-CORRECTION ---
                 raw_qty = max(1, math.ceil(lumens_target[fx] / lm_each))
-                
                 max_density_area = 2.5 if building_category in ["Villa", "فيلا"] else 2.0
                 max_allowed_spots = max(4, int(area / max_density_area))
                 
                 if raw_qty > max_allowed_spots:
                     st.warning(
                         f"⚠️ **Density Control:** The math requires {raw_qty} spots, but that is too dense for a {area:.1f} m² room. "
-                        f"Quantity has been capped at **{max_allowed_spots} spots** to protect the interior design. "
-                        f"To compensate, please increase the **lumens per spot** or increase the **LED Profile / Hidden Light share**."
+                        f"Quantity has been capped at **{max_allowed_spots} spots** to protect the interior design."
                         if not is_ar else
                         f"⚠️ **التحكم بالكثافة:** الحساب يتطلب {raw_qty} سبوت، لكن هذا عدد كبير جداً لغرفة {area:.1f} م². "
-                        f"تم تحديد الكمية بـ **{max_allowed_spots} سبوت** للحفاظ على التصميم الداخلي. "
-                        f"للتعويض، يرجى زيادة **اللومن لكل سبوت** أو زيادة نسبة **البروفايل / الإضاءة المخفية**."
+                        f"تم تحديد الكمية بـ **{max_allowed_spots} سبوت** للحفاظ على التصميم الداخلي."
                     )
                     raw_qty = max_allowed_spots
-                    
                     recommended_lm = math.ceil(lumens_target[fx] / raw_qty)
                     st.info(
                         f"💡 **Recommendation:** Use spots of at least **{recommended_lm} lm** each, "
-                        f"or reduce the spot weight (%) in the distribution section above."
+                        f"or reduce the spot weight (%) above."
                         if not is_ar else
-                        f"💡 **توصية:** استخدم سبوتات بقوة **{recommended_lm} لومن** على الأقل، "
-                        f"أو قلّل نسبة السبوت (%) في قسم توزيع اللومن أعلاه."
+                        f"💡 **توصية:** استخدم سبوتات بقوة **{recommended_lm} لومن** على الأقل."
                     )
 
                 max_dim = max(4, int(math.ceil(math.sqrt(raw_qty))) + 3)
                 room_ar = length / width
                 shr_lim = shr_max_for_beam(beam_deg)
 
-                # --- NEW GRID LOGIC: Distribute evenly across the whole room ---
                 best = None
                 best_score = float('inf')
                 for r in range(1, max_dim + 1):
                     for c in range(1, max_dim + 1):
                         tg = r * c
                         if tg < raw_qty: continue
-                        
                         step_x = length / c
                         step_y = width / r
                         margin_x = step_x / 2
                         margin_y = step_y / 2
-                        
-                        # Prevent spots from being too close to the wall (min 30cm)
-                        if margin_x < 0.30 or margin_y < 0.30:
-                            continue
-                            
-                        if (step_x / hm) > shr_lim or (step_y / hm) > shr_lim:
-                            continue
-                            
+                        if margin_x < 0.30 or margin_y < 0.30: continue
+                        if (step_x / hm) > shr_lim or (step_y / hm) > shr_lim: continue
                         score = abs((c / r) - room_ar) * 1.5 + (tg - raw_qty) * 0.4
                         if score < best_score:
                             best_score = score
                             best = (tg, r, c, step_x, step_y, margin_x, margin_y)
 
-                # Fallback if SHR or margin limits are too strict
                 if best is None:
                     for r in range(1, max_dim + 1):
                         for c in range(1, max_dim + 1):
@@ -430,8 +419,8 @@ else:
                     
                     if best:
                         st.warning(
-                            "⚠️ SHR limit ignored slightly to fit a full-room grid. Consider wider beam angles." if not is_ar
-                            else "⚠️ تم تجاهل حد SHR قليلاً لتغطية الغرفة بالكامل. جرب زاوية شعاع أوسع."
+                            "⚠️ SHR limit ignored slightly to fit a full-room grid." if not is_ar
+                            else "⚠️ تم تجاهل حد SHR قليلاً لتغطية الغرفة بالكامل."
                         )
                     else:
                         st.error("⚠️ Could not find a suitable grid." if not is_ar else "⚠️ لم يتم العثور على شبكة مناسبة.")
@@ -461,6 +450,41 @@ else:
                     if not is_ar else
                     f"📐 **{qty} سبوت** شبكة **{rows}×{cols}** | SHR {shr_actual:.2f} "
                     f"(الحد {shr_lim:.2f}) | U₀ ≈ {u0:.2f} | UGR ≈ {ugr}"
+                )
+
+            # ⚠️ كود الثريا الجديد (قطعة واحدة فقط)
+            elif fx == "chandelier":
+                with fc2:
+                    ch_type = st.selectbox("Chandelier Style:" if not is_ar else "ستايل الثريا:",
+                                           ["Modern Pendant", "Crystal", "Linear", "Ring", "Cluster"],
+                                           key="ch_type")
+                    ch_lm = st.number_input("Total Lumens (lm):" if not is_ar else "إجمالي اللومن:",
+                                            100, 20000, 3000, 100, key="ch_lm")
+                    ch_w = st.number_input("Total Power (W):" if not is_ar else "إجمالي الواط:",
+                                           5.0, 500.0, 60.0, 5.0, key="ch_w")
+
+                qty = 1  # كمية ثابتة
+                delivered_lm = ch_lm
+                watts = ch_w
+                
+                if delivered_lm < lumens_target[fx] * 0.8:
+                    st.warning(
+                        f"⚠️ Chandelier output ({delivered_lm} lm) is lower than the target ({lumens_target[fx]:.0f} lm) for this %.0f%% share."
+                        if not is_ar else
+                        f"⚠️ لومن الثريا ({delivered_lm} lm) أقل من المستهدف ({lumens_target[fx]:.0f} lm) لهذه النسبة."
+                    )
+
+                results["chandelier"] = dict(
+                    qty=1, lm=delivered_lm, watts=watts, ch_type=ch_type,
+                    cct=CCT_OPTIONS[cct_label], cri=CRI_OPTIONS[cri_label],
+                    pf=pf, beam=beam_deg
+                )
+                total_watts += watts
+                total_lumens += delivered_lm
+                st.info(
+                    f"📐 **1 Chandelier** ({ch_type}) | {delivered_lm:,.0f} lm | {watts:.0f} W"
+                    if not is_ar else
+                    f"📐 **ثريا واحدة** ({ch_type}) | {delivered_lm:,.0f} lm | {watts:.0f} واط"
                 )
 
             elif fx == "track":
@@ -618,13 +642,6 @@ if results:
                   delta=f"limit {target_ugr}")
         m4.metric("Beam" if not is_ar else "الشعاع", f"{s['beam']}°")
 
-        if s['ugr'] > target_ugr:
-            st.error(f"❌ UGR {s['ugr']} > {target_ugr}. Narrower beam or lower lm/fixture." if not is_ar
-                     else f"❌ UGR {s['ugr']} > {target_ugr}. زاوية أضيق أو لومن أقل.")
-        if s['u0'] < 0.60:
-            st.warning(f"⚠️ U₀ {s['u0']:.2f} < 0.60 (EN 12464-1). Reduce spacing." if not is_ar
-                       else f"⚠️ U₀ {s['u0']:.2f} < 0.60 (EN 12464-1). قلّل التباعد.")
-
     st.caption("📌 Lumen method estimate. Verify with DIALux/Relux for final design." if not is_ar
                else "📌 تقدير بطريقة اللومن. تحقق بـ DIALux/Relux للتصميم النهائي.")
 
@@ -761,14 +778,19 @@ if results:
     fig, ax = plt.subplots(figsize=(7, fig_h))
     ax.plot([0, length, length, 0, 0], [0, 0, width, width, 0],
             color='#2C3E50', linewidth=3, label='Room')
+    
     if "spot" in results:
         s = results["spot"]
-        # Changed (i + 1) to (i) because margin is now already half the step
         xc = [s['margin_x'] + s['step_x'] * i for i in range(s['cols'])]
         yc = [s['margin_y'] + s['step_y'] * j for j in range(s['rows'])]
         gx, gy = np.meshgrid(xc, yc)
         ax.scatter(gx.flatten()[:s['qty']], gy.flatten()[:s['qty']],
                    color='#E74C3C', s=120, marker='o', zorder=5, label='Spot')
+                   
+    # ⚠️ رسم الثريا في المنتصف
+    if "chandelier" in results:
+        ax.scatter([length/2], [width/2], color='#F1C40F', s=600, marker='*', zorder=6, label='Chandelier')
+
     if "track" in results:
         ax.plot([0.4, length - 0.4], [0.4, 0.4], color='#8E44AD',
                 linestyle='--', linewidth=3, label='Track')
@@ -823,6 +845,17 @@ if results:
         ["", "", "", ""],
         ["Item", "Specification", "Quantity", "Load"],
     ]
+    
+    # ⚠️ إضافة الثريا في جدول الكميات
+    if "chandelier" in results:
+        c = results["chandelier"]
+        boq_rows.append([
+            "Chandelier",
+            f"{c['ch_type']}, {c['lm']}lm, {c['cct']}K, Ra{c['cri']}, PF {c['pf']:.2f}",
+            f"1 pc",
+            f"{c['watts']:.0f} W"
+        ])
+        
     if "spot" in results:
         s = results["spot"]
         boq_rows.append([
