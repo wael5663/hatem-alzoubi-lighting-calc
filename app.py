@@ -7,10 +7,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import streamlit as st
 
+# ⚠️ تم تغيير layout إلى wide لتوفير مساحة أكبر للواجهة
 st.set_page_config(
     page_title="Hatem Alzoubi Lighting Design Pro",
     page_icon="💡",
-    layout="centered"
+    layout="wide" 
 )
 
 # ==========================================
@@ -55,6 +56,7 @@ if is_ar:
         [data-testid="stMetricValue"] {
             direction: ltr !important;
             text-align: right !important;
+            font-size: 1.6rem !important; /* تصغير الخط قليلاً ليتسع للجميع */
         }
         [data-testid="stMetricLabel"] {
             direction: rtl !important;
@@ -169,10 +171,10 @@ def safe_div(a, b, default=0):
     return a / b if b else default
 
 # ==========================================
-# TITLE
+# TITLE (تمت إزالة الإيموجي لتجنب مشاكل العرض)
 # ==========================================
-st.title("💡 Hatem Alzoubi Lighting Design Pro" if not is_ar
-         else "💡 مجموعة حاتم الزعبي للإنارة - حاسبة الإنارة - مهندس وائل")
+st.title("Hatem Alzoubi Lighting Design Pro" if not is_ar
+         else "مجموعة حاتم الزعبي للإنارة - حاسبة الإنارة - مهندس وائل")
 st.caption("Jordan 230V / 50Hz | Interior + Electrical + Lighting Engineering" if not is_ar
            else "مجموعة حاتم الزعبي للإنارة - حاسبة الإنارة - مهندس وائل | الأردن 230V / 50Hz")
 
@@ -262,15 +264,17 @@ utilization_factor = st.slider(
 )
 total_lumens_req = area * target_lux / (utilization_factor * maintenance_factor)
 
-mc1, mc2, mc3, mc4, mc5 = st.columns(5)
+# ⚠️ تقسيم الأرقام إلى صفين لمنع قطعها
+st.markdown("---")
+mc1, mc2, mc3 = st.columns(3)
 mc1.metric("Area" if not is_ar else "المساحة", f"{area:.1f} m²")
 mc2.metric("Room Index K" if not is_ar else "مؤشر الغرفة K", f"{room_index_k:.2f}")
-mc3.metric("UF / MF" if not is_ar else "UF / MF", f"{utilization_factor:.2f}/{maintenance_factor:.2f}")
-mc4.metric("Target Lux" if not is_ar else "اللوكس المطلوب", f"{target_lux} lx")
-mc5.metric("Required Lumens" if not is_ar else "اللومن المطلوب",
-           f"{total_lumens_req:,.0f} lm")
+mc3.metric("Target Lux" if not is_ar else "اللوكس المطلوب", f"{target_lux} lx")
 
-st.divider()
+mc4, mc5 = st.columns(2)
+mc4.metric("UF / MF" if not is_ar else "معامل الاستفادة / الصيانة", f"{utilization_factor:.2f} / {maintenance_factor:.2f}")
+mc5.metric("Required Lumens" if not is_ar else "إجمالي اللومن المطلوب", f"{total_lumens_req:,.0f} lm")
+st.markdown("---")
 
 # ==========================================
 # PHASE 2 — FIXTURES
@@ -583,9 +587,11 @@ if results:
     actual_lux = total_lumens * utilization_factor * maintenance_factor / area
     lux_delta = actual_lux - target_lux
 
-    v1, v2, v3, v4 = st.columns(4)
+    v1, v2 = st.columns(2)
     v1.metric("Req lm" if not is_ar else "لومن مطلوب", f"{total_lumens_req:,.0f}")
     v2.metric("Delivered lm" if not is_ar else "لومن مزود", f"{total_lumens:,.0f}")
+    
+    v3, v4 = st.columns(2)
     v3.metric("Actual Lux" if not is_ar else "لوكس فعلي",
               f"{actual_lux:.0f}", delta=f"{lux_delta:+.0f}")
     v4.metric("Load" if not is_ar else "حمل", f"{total_watts:.0f} W")
@@ -637,9 +643,11 @@ if results:
     design_load = connected_load * 1.20
     current_total = connected_load / (SUPPLY_V * pf_system)
 
-    e1, e2, e3, e4 = st.columns(4)
+    e1, e2 = st.columns(2)
     e1.metric("Connected" if not is_ar else "الحمل الموصول", f"{connected_load:.0f} W")
     e2.metric("Design +20%" if not is_ar else "التصميم +20%", f"{design_load:.0f} W")
+    
+    e3, e4 = st.columns(2)
     e3.metric("PF (worst)" if not is_ar else "PF (الأسوأ)", f"{pf_system:.2f}")
     e4.metric("Current" if not is_ar else "التيار", f"{current_total:.1f} A")
 
@@ -655,9 +663,11 @@ if results:
     num_circuits = max(1, math.ceil(connected_load / max_circuit_w))
     circuit_current = (connected_load / num_circuits) / (SUPPLY_V * pf_system)
 
-    cc1, cc2, cc3, cc4 = st.columns(4)
+    cc1, cc2 = st.columns(2)
     cc1.metric("Max W/circuit" if not is_ar else "أقصى واط/دائرة", f"{max_circuit_w:.0f}")
     cc2.metric("Circuits" if not is_ar else "عدد الدوائر", f"{num_circuits}")
+    
+    cc3, cc4 = st.columns(2)
     cc3.metric("A/circuit" if not is_ar else "أمبير/دائرة", f"{circuit_current:.1f}")
     cc4.metric("MCB Type" if not is_ar else "نوع القاطع", "C-curve")
 
