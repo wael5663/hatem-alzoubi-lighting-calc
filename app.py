@@ -25,7 +25,7 @@ AMPACITY = {1.0: 11.0, 1.5: 14.5, 2.5: 19.5, 4.0: 26.0,
             6.0: 34.0, 10.0: 46.0, 16.0: 61.0}
 
 # ==========================================
-# LANGUAGE
+# LANGUAGE & CSS FIX
 # ==========================================
 LANG = st.sidebar.selectbox("🌐 Language / اللغة", ["English", "العربية"])
 is_ar = (LANG == "العربية")
@@ -33,13 +33,36 @@ is_ar = (LANG == "العربية")
 if is_ar:
     st.markdown("""
         <style>
-        .stApp, [data-testid="stAppViewContainer"], [data-testid="stSidebar"],
-        .main, p, span, div, label, h1, h2, h3, h4, h5, h6 {
-            direction: rtl !important; text-align: right !important;
+        /* 1. اتجاه الصفحة الأساسي من اليمين لليسار */
+        .stApp, [data-testid="stAppViewContainer"], [data-testid="stSidebar"], .main {
+            direction: rtl !important;
         }
-        [data-testid="stMetricValue"], [data-testid="stMetricLabel"],
+        
+        /* 2. النصوص والعناوين من اليمين لليسار */
+        p, label, h1, h2, h3, h4, h5, h6 {
+            direction: rtl !important; 
+            text-align: right !important;
+        }
+
+        /* 3. المحاذاة لليمين للقوائم المنسدلة والمدخلات */
+        .stSelectbox label, .stNumberInput label, .stSlider label, .stMultiSelect label {
+            direction: rtl !important; 
+            text-align: right !important;
+            float: right !important;
+        }
+
+        /* 4. ⚠️ إصلاح الأرقام: إجبار القيم على أن تكون LTR لكي لا تُقطع */
+        [data-testid="stMetricValue"] {
+            direction: ltr !important;
+            text-align: right !important;
+        }
+        [data-testid="stMetricLabel"] {
+            direction: rtl !important;
+            text-align: right !important;
+        }
         [data-testid="stMetricDelta"] {
-            direction: rtl !important; text-align: right !important;
+            direction: ltr !important;
+            text-align: right !important;
         }
         </style>
     """, unsafe_allow_html=True)
@@ -333,7 +356,6 @@ else:
                 # --- DENSITY CONTROL & AUTO-CORRECTION ---
                 raw_qty = max(1, math.ceil(lumens_target[fx] / lm_each))
                 
-                # Max 1 spot per 2.5 m² for residential, 2.0 m² for commercial
                 max_density_area = 2.5 if building_category in ["Villa", "فيلا"] else 2.0
                 max_allowed_spots = max(4, int(area / max_density_area))
                 
@@ -361,34 +383,57 @@ else:
                 max_dim = max(4, int(math.ceil(math.sqrt(raw_qty))) + 3)
                 room_ar = length / width
                 shr_lim = shr_max_for_beam(beam_deg)
-                margin_x = 0.65
-                margin_y = 0.65
-                eff_len = max(0.3, length - 2 * margin_x)
-                eff_wid = max(0.3, width - 2 * margin_y)
 
+                # --- NEW GRID LOGIC: Distribute evenly across the whole room ---
                 best = None
                 best_score = float('inf')
                 for r in range(1, max_dim + 1):
                     for c in range(1, max_dim + 1):
                         tg = r * c
                         if tg < raw_qty: continue
-                        step_x = eff_len / (c + 1)
-                        step_y = eff_wid / (r + 1)
+                        
+                        step_x = length / c
+                        step_y = width / r
+                        margin_x = step_x / 2
+                        margin_y = step_y / 2
+                        
+                        # Prevent spots from being too close to the wall (min 30cm)
+                        if margin_x < 0.30 or margin_y < 0.30:
+                            continue
+                            
                         if (step_x / hm) > shr_lim or (step_y / hm) > shr_lim:
                             continue
+                            
                         score = abs((c / r) - room_ar) * 1.5 + (tg - raw_qty) * 0.4
                         if score < best_score:
                             best_score = score
-                            best = (tg, r, c, step_x, step_y)
+                            best = (tg, r, c, step_x, step_y, margin_x, margin_y)
 
+                # Fallback if SHR or margin limits are too strict
                 if best is None:
-                    st.error(
-                        "⚠️ Could not find a suitable grid. Try adjusting beam angle or dimensions." if not is_ar
-                        else "⚠️ لم يتم العثور على شبكة مناسبة. جرب تعديل زاوية الشعاع أو الأبعاد."
-                    )
-                    continue
+                    for r in range(1, max_dim + 1):
+                        for c in range(1, max_dim + 1):
+                            tg = r * c
+                            if tg < raw_qty: continue
+                            step_x = length / c
+                            step_y = width / r
+                            margin_x = step_x / 2
+                            margin_y = step_y / 2
+                            score = abs((c / r) - room_ar) * 1.5 + (tg - raw_qty) * 0.4
+                            if score < best_score:
+                                best_score = score
+                                best = (tg, r, c, step_x, step_y, margin_x, margin_y)
+                    
+                    if best:
+                        st.warning(
+                            "⚠️ SHR limit ignored slightly to fit a full-room grid. Consider wider beam angles." if not is_ar
+                            else "⚠️ تم تجاهل حد SHR قليلاً لتغطية الغرفة بالكامل. جرب زاوية شعاع أوسع."
+                        )
+                    else:
+                        st.error("⚠️ Could not find a suitable grid." if not is_ar else "⚠️ لم يتم العثور على شبكة مناسبة.")
+                        continue
 
-                qty, rows, cols, step_x, step_y = best
+                qty, rows, cols, step_x, step_y, margin_x, margin_y = best
                 delivered_lm = qty * lm_each
                 watts = qty * w_each
                 shr_actual = max(step_x / hm, step_y / hm)
@@ -678,11 +723,11 @@ if results:
         st.info(
             f"- {s['rows']} × {s['cols']} grid\n"
             f"- X step: {s['step_x']*100:.1f} cm | Y step: {s['step_y']*100:.1f} cm\n"
-            f"- First row from wall: {(s['margin_x']+s['step_x'])*100:.1f} cm"
+            f"- First row from wall: {s['margin_x']*100:.1f} cm"
             if not is_ar else
             f"- شبكة {s['rows']} × {s['cols']}\n"
             f"- خطوة X: {s['step_x']*100:.1f} سم | خطوة Y: {s['step_y']*100:.1f} سم\n"
-            f"- أول صف من الجدار: {(s['margin_x']+s['step_x'])*100:.1f} سم"
+            f"- أول صف من الجدار: {s['margin_x']*100:.1f} سم"
         )
     if "profile" in results:
         p = results["profile"]
@@ -708,8 +753,9 @@ if results:
             color='#2C3E50', linewidth=3, label='Room')
     if "spot" in results:
         s = results["spot"]
-        xc = [s['margin_x'] + s['step_x'] * (i + 1) for i in range(s['cols'])]
-        yc = [s['margin_y'] + s['step_y'] * (j + 1) for j in range(s['rows'])]
+        # Changed (i + 1) to (i) because margin is now already half the step
+        xc = [s['margin_x'] + s['step_x'] * i for i in range(s['cols'])]
+        yc = [s['margin_y'] + s['step_y'] * j for j in range(s['rows'])]
         gx, gy = np.meshgrid(xc, yc)
         ax.scatter(gx.flatten()[:s['qty']], gy.flatten()[:s['qty']],
                    color='#E74C3C', s=120, marker='o', zorder=5, label='Spot')
