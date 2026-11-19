@@ -1,6 +1,7 @@
 import math
 import io
 import csv
+import re
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -10,7 +11,7 @@ import streamlit as st
 st.set_page_config(
     page_title="Hatem Alzoubi Lighting Design Pro",
     page_icon="💡",
-    layout="wide" 
+    layout="wide"
 )
 
 # ==========================================
@@ -25,69 +26,140 @@ AMPACITY = {1.0: 11.0, 1.5: 14.5, 2.5: 19.5, 4.0: 26.0,
             6.0: 34.0, 10.0: 46.0, 16.0: 61.0}
 
 # ==========================================
-# LANGUAGE & CSS FIX (Mobile Responsive)
+# LANGUAGE & CSS (Mobile Responsive + RTL)
 # ==========================================
 LANG = st.sidebar.selectbox("🌐 Language / اللغة", ["English", "العربية"])
 is_ar = (LANG == "العربية")
 
+# --- Common responsive rules (both languages) ---
+COMMON_CSS = """
+<style>
+/* Never allow sideways scrolling */
+html, body, .stApp, [data-testid="stAppViewContainer"] {
+    max-width: 100vw;
+    overflow-x: hidden;
+}
+.block-container { max-width: 100% !important; }
+img, canvas, svg { max-width: 100% !important; height: auto; }
+
+@media (max-width: 768px) {
+    .block-container {
+        padding-left: 0.8rem !important;
+        padding-right: 0.8rem !important;
+        padding-top: 1rem !important;
+    }
+    h1 { font-size: 1.35rem !important; line-height: 1.4 !important; }
+    h2 { font-size: 1.2rem !important; }
+    h3 { font-size: 1.05rem !important; }
+
+    /* Let column rows wrap, and stack columns (supports old + new Streamlit testids) */
+    [data-testid="stHorizontalBlock"] {
+        flex-wrap: wrap !important;
+        gap: 0.5rem !important;
+    }
+    [data-testid="stColumn"], [data-testid="column"] {
+        width: 100% !important;
+        flex: 1 1 100% !important;
+        min-width: 100% !important;
+    }
+    /* Metrics sit two per row to save vertical space */
+    [data-testid="stColumn"]:has([data-testid="stMetric"]),
+    [data-testid="column"]:has([data-testid="stMetric"]) {
+        flex: 1 1 calc(50% - 0.5rem) !important;
+        min-width: calc(50% - 0.5rem) !important;
+        width: calc(50% - 0.5rem) !important;
+    }
+    [data-testid="stMetricValue"] { font-size: 1.3rem !important; }
+    [data-testid="stMetricLabel"] p { font-size: 0.8rem !important; }
+}
+</style>
+"""
+st.markdown(COMMON_CSS, unsafe_allow_html=True)
+
+# --- Arabic / RTL rules ---
 if is_ar:
     st.markdown("""
         <style>
-        /* 1. اتجاه الصفحة الأساسي من اليمين لليسار */
-        .stApp, [data-testid="stAppViewContainer"], [data-testid="stSidebar"], .main {
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
+
+        /* 1. Base direction + font */
+        .stApp, [data-testid="stAppViewContainer"], [data-testid="stSidebar"],
+        [data-testid="stSidebarContent"], [data-testid="stMain"], .main {
             direction: rtl !important;
         }
-        
-        /* 2. محاذاة النصوص فقط (بدون تخريب أعمدة التصميم) */
-        h1, h2, h3, h4, h5, h6, p, label, .stMarkdown {
-            text-align: right !important;
+        .stApp, .stApp p, .stApp label, .stApp h1, .stApp h2, .stApp h3,
+        .stApp h4, .stApp li, .stApp button, .stApp input, .stApp textarea,
+        .stApp span, .stApp div {
+            font-family: 'Cairo', 'Segoe UI', Tahoma, Arial, sans-serif;
+        }
+        /* keep Streamlit icon fonts untouched */
+        .stApp [data-testid="stIconMaterial"], .stApp .material-icons,
+        .stApp span[class*="material"] {
+            font-family: 'Material Symbols Rounded', 'Material Icons' !important;
         }
 
-        /* 3. محاذاة عناوين الحقول لليمين */
-        [data-testid="stWidgetLabel"] {
+        /* 2. Top toolbar/header stays LTR so the sidebar button doesn't flip */
+        header[data-testid="stHeader"] { direction: ltr !important; }
+
+        /* 3. Text alignment */
+        h1, h2, h3, h4, h5, h6, p, label, li, .stMarkdown, .stCaption,
+        [data-testid="stWidgetLabel"], [data-testid="stCaptionContainer"] {
             text-align: right !important;
+        }
+        [data-testid="stWidgetLabel"] { width: 100%; justify-content: flex-end; }
+
+        /* 4. Mixed Arabic/English/number lines: resolve direction per line */
+        [data-testid="stAlert"] p, [data-testid="stAlert"] li,
+        [data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] li {
+            unicode-bidi: plaintext;
+        }
+        [data-testid="stAlert"] ul, [data-testid="stMarkdownContainer"] ul {
+            padding-right: 1.4rem; padding-left: 0;
         }
 
-        /* 4. إصلاح الأرقام (لتكون من اليسار لليمين كي لا تُقطع) */
-        [data-testid="stMetricValue"] {
-            direction: ltr !important;
-            text-align: right !important;
-            font-size: 1.6rem !important; 
+        /* 5. Metrics: numbers LTR so they never get clipped/reversed */
+        [data-testid="stMetric"] { text-align: right !important; }
+        [data-testid="stMetricValue"], [data-testid="stMetricValue"] div {
+            direction: ltr !important; text-align: right !important;
+            unicode-bidi: plaintext;
         }
-        [data-testid="stMetricLabel"] {
-            direction: rtl !important;
-            text-align: right !important;
+        [data-testid="stMetricLabel"] { direction: rtl !important; text-align: right !important; }
+        [data-testid="stMetricDelta"] { direction: ltr !important; justify-content: flex-end; }
+
+        /* 6. Sliders: RTL breaks BaseWeb slider math -> keep the track LTR */
+        [data-testid="stSlider"] { direction: ltr !important; }
+        [data-testid="stSlider"] [data-testid="stWidgetLabel"],
+        [data-testid="stSlider"] label {
+            direction: rtl !important; text-align: right !important;
         }
-        [data-testid="stMetricDelta"] {
-            direction: ltr !important;
-            text-align: right !important;
+        [data-testid="stSlider"] [data-testid="stTickBar"] { direction: ltr !important; }
+
+        /* 7. Number inputs: digits LTR */
+        [data-testid="stNumberInput"] input {
+            direction: ltr !important; text-align: right !important;
         }
 
-        /* 5. شروط خاصة بالشاشات الصغيرة (الموبايل) */
+        /* 8. Selectbox / multiselect + their dropdown popovers (rendered in a portal) */
+        [data-baseweb="select"], [data-baseweb="select"] > div { direction: rtl !important; }
+        div[data-baseweb="popover"], div[data-baseweb="popover"] ul,
+        div[data-baseweb="popover"] li, ul[role="listbox"], li[role="option"] {
+            direction: rtl !important; text-align: right !important;
+        }
+
+        /* 9. Checkbox */
+        [data-testid="stCheckbox"] label { flex-direction: row-reverse; justify-content: flex-end; }
+
+        /* 10. Expanders */
+        [data-testid="stExpander"] summary { direction: rtl !important; }
+
+        /* 11. Buttons */
+        .stDownloadButton, .stButton { text-align: right !important; }
+
+        /* 12. Small screens */
         @media (max-width: 768px) {
-            /* تصغير العناوين الرئيسية */
-            h1 {
-                font-size: 1.3rem !important;
-                text-align: center !important;
-                line-height: 1.4 !important;
-            }
-            h2 { font-size: 1.2rem !important; }
-            h3 { font-size: 1.1rem !important; }
-            
-            /* ⚠️ الأهم: جعل الأعمدة تترتب فوق بعضها بدلاً من الانضغاط */
-            [data-testid="column"] {
-                width: 100% !important;
-                flex: 1 1 100% !important;
-                min-width: 100% !important;
-                margin-bottom: 15px !important;
-            }
-            
-            /* ضبط هوامش الصفحة على الموبايل */
-            .block-container {
-                padding-left: 10px !important;
-                padding-right: 10px !important;
-                padding-top: 1rem !important;
-            }
+            h1 { text-align: center !important; }
+            [data-testid="stSidebar"] { max-width: 85vw !important; }
+            [data-baseweb="select"] div, .stApp input { font-size: 16px !important; } /* stops iOS zoom */
         }
         </style>
     """, unsafe_allow_html=True)
@@ -192,6 +264,9 @@ def recommend_psu_size(required_w):
 
 def safe_div(a, b, default=0):
     return a / b if b else default
+
+def safe_filename(text):
+    return re.sub(r'[^\w\-]+', '_', text, flags=re.UNICODE).strip('_') or "room"
 
 # ==========================================
 # TITLE
@@ -359,7 +434,7 @@ else:
                                           list(CCT_OPTIONS.keys()), key=f"{fx}_cct")
                 cri_label = st.selectbox("CRI:" if not is_ar else "CRI:",
                                           list(CRI_OPTIONS.keys()), key=f"{fx}_cri")
-                
+
                 if fx == "chandelier":
                     beam_deg = 90
                     pf = st.number_input(
@@ -393,7 +468,7 @@ else:
                 raw_qty = max(1, math.ceil(lumens_target[fx] / lm_each))
                 max_density_area = 2.5 if building_category in ["Villa", "فيلا"] else 2.0
                 max_allowed_spots = max(4, int(area / max_density_area))
-                
+
                 if raw_qty > max_allowed_spots:
                     st.warning(
                         f"⚠️ **Density Control:** The math requires {raw_qty} spots, but that is too dense for a {area:.1f} m² room. "
@@ -445,7 +520,7 @@ else:
                             if score < best_score:
                                 best_score = score
                                 best = (tg, r, c, step_x, step_y, margin_x, margin_y)
-                    
+
                     if best:
                         st.warning(
                             "⚠️ SHR limit ignored slightly to fit a full-room grid." if not is_ar
@@ -494,12 +569,15 @@ else:
                 qty = 1
                 delivered_lm = ch_lm
                 watts = ch_w
-                
+                share_pct = shares[fx] * 100
+
                 if delivered_lm < lumens_target[fx] * 0.8:
                     st.warning(
-                        f"⚠️ Chandelier output ({delivered_lm} lm) is lower than the target ({lumens_target[fx]:.0f} lm) for this %.0f%% share."
+                        f"⚠️ Chandelier output ({delivered_lm} lm) is lower than the target "
+                        f"({lumens_target[fx]:.0f} lm) for its {share_pct:.0f}% share."
                         if not is_ar else
-                        f"⚠️ لومن الثريا ({delivered_lm} lm) أقل من المستهدف ({lumens_target[fx]:.0f} lm) لهذه النسبة."
+                        f"⚠️ لومن الثريا ({delivered_lm} lm) أقل من المستهدف "
+                        f"({lumens_target[fx]:.0f} lm) لنسبتها ({share_pct:.0f}%)."
                     )
 
                 results["chandelier"] = dict(
@@ -564,7 +642,7 @@ else:
 
                 off = 0.30
                 if placement == "Perimeter":
-                    geom = 2 * ((length - 2 * off) + (width - 2 * off))
+                    geom = 2 * (max(0.0, length - 2 * off) + max(0.0, width - 2 * off))
                 elif placement == "Parallel Lines":
                     geom = 2 * max(length, width)
                 else:
@@ -611,7 +689,7 @@ else:
                              else "⚠️ اختر جانبًا واحدًا على الأقل.")
                     continue
 
-                geom = sum(length if "L" in s else width for s in sides)
+                geom = sum(length if s.endswith("(L)") else width for s in sides)
                 delivered_lm = geom * hid_lm_m
                 watts = geom * w_m
                 results["hidden"] = dict(
@@ -642,7 +720,7 @@ if results:
     v1, v2 = st.columns(2)
     v1.metric("Req lm" if not is_ar else "لومن مطلوب", f"{total_lumens_req:,.0f}")
     v2.metric("Delivered lm" if not is_ar else "لومن مزود", f"{total_lumens:,.0f}")
-    
+
     v3, v4 = st.columns(2)
     v3.metric("Actual Lux" if not is_ar else "لوكس فعلي",
               f"{actual_lux:.0f}", delta=f"{lux_delta:+.0f}")
@@ -691,7 +769,7 @@ if results:
     e1, e2 = st.columns(2)
     e1.metric("Connected" if not is_ar else "الحمل الموصول", f"{connected_load:.0f} W")
     e2.metric("Design +20%" if not is_ar else "التصميم +20%", f"{design_load:.0f} W")
-    
+
     e3, e4 = st.columns(2)
     e3.metric("PF (worst)" if not is_ar else "PF (الأسوأ)", f"{pf_system:.2f}")
     e4.metric("Current" if not is_ar else "التيار", f"{current_total:.1f} A")
@@ -711,7 +789,7 @@ if results:
     cc1, cc2 = st.columns(2)
     cc1.metric("Max W/circuit" if not is_ar else "أقصى واط/دائرة", f"{max_circuit_w:.0f}")
     cc2.metric("Circuits" if not is_ar else "عدد الدوائر", f"{num_circuits}")
-    
+
     cc3, cc4 = st.columns(2)
     cc3.metric("A/circuit" if not is_ar else "أمبير/دائرة", f"{circuit_current:.1f}")
     cc4.metric("MCB Type" if not is_ar else "نوع القاطع", "C-curve")
@@ -740,7 +818,8 @@ if results:
     if "hidden" in results:
         h = results["hidden"]
         strip_v = h["voltage"]
-        strip_current = h["watts"] / (strip_v * h['pf'])
+        # DC low-voltage side: current = P / V (power factor does not apply)
+        strip_current = h["watts"] / strip_v
         for cross in [1.5, 2.5, 4.0, 6.0]:
             vd = (2 * h["length"] * strip_current * CABLE_RHO) / cross
             pct = vd / strip_v * 100
@@ -802,11 +881,11 @@ if results:
     st.divider()
     st.header("Phase 6: Layout Drawing" if not is_ar
               else "المرحلة 6: المخطط")
-    fig_h = max(2.5, 7 * safe_div(width, length, 1))
+    fig_h = min(9.0, max(2.5, 7 * safe_div(width, length, 1)))
     fig, ax = plt.subplots(figsize=(7, fig_h))
     ax.plot([0, length, length, 0, 0], [0, 0, width, width, 0],
             color='#2C3E50', linewidth=3, label='Room')
-    
+
     if "spot" in results:
         s = results["spot"]
         xc = [s['margin_x'] + s['step_x'] * i for i in range(s['cols'])]
@@ -814,15 +893,31 @@ if results:
         gx, gy = np.meshgrid(xc, yc)
         ax.scatter(gx.flatten()[:s['qty']], gy.flatten()[:s['qty']],
                    color='#E74C3C', s=120, marker='o', zorder=5, label='Spot')
-                   
+
     if "chandelier" in results:
         ax.scatter([length/2], [width/2], color='#F1C40F', s=600, marker='*', zorder=6, label='Chandelier')
 
     if "track" in results:
-        ax.plot([0.4, length - 0.4], [0.4, 0.4], color='#8E44AD',
-                linestyle='--', linewidth=3, label='Track')
-        ax.plot([0.4, length - 0.4], [width - 0.4, width - 0.4],
-                color='#8E44AD', linestyle='--', linewidth=3)
+        t = results["track"]
+        o = 0.4
+        lay = t['layout']
+        along_x = length >= width
+        segs = []
+        if lay == "Straight (Center)":
+            segs = [([o, length - o], [width / 2] * 2)] if along_x \
+                else [([length / 2] * 2, [o, width - o])]
+        elif lay == "Parallel (2)":
+            segs = [([o, length - o], [width * 0.25] * 2), ([o, length - o], [width * 0.75] * 2)] if along_x \
+                else [([length * 0.25] * 2, [o, width - o]), ([length * 0.75] * 2, [o, width - o])]
+        elif lay == "L-Shape":
+            segs = [([o, length - o], [o, o]), ([o, o], [o, width - o])]
+        else:  # U-Shape
+            segs = [([o, length - o], [o, o]), ([o, length - o], [width - o, width - o]),
+                    ([o, o], [o, width - o])]
+        for i, (xs, ys) in enumerate(segs):
+            ax.plot(xs, ys, color='#8E44AD', linestyle='--', linewidth=3,
+                    label='Track' if i == 0 else None)
+
     if "profile" in results:
         p = results["profile"]
         off = 0.30
@@ -845,12 +940,12 @@ if results:
     ax.set_xlim(-0.5, length + 0.5)
     ax.set_ylim(-0.5, width + 0.5)
     ax.set_aspect('equal')
-    ax.set_title(f"Lighting Layout ({length}m × {width}m)")
+    ax.set_title(f"Lighting Layout ({length}m × {width}m)", fontsize=10)
     ax.set_xlabel("Length (m)")
     ax.set_ylabel("Width (m)")
     ax.grid(True, linestyle=':', alpha=0.6)
-    ax.legend(loc='lower center', bbox_to_anchor=(0.5, -0.28), ncol=4, fontsize=8)
-    st.pyplot(fig)
+    ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.18), ncol=3, fontsize=8, frameon=False)
+    st.pyplot(fig, use_container_width=True)
     plt.close(fig)
 
 # ==========================================
@@ -872,16 +967,16 @@ if results:
         ["", "", "", ""],
         ["Item", "Specification", "Quantity", "Load"],
     ]
-    
+
     if "chandelier" in results:
         c = results["chandelier"]
         boq_rows.append([
             "Chandelier",
             f"{c['ch_type']}, {c['lm']}lm, {c['cct']}K, Ra{c['cri']}, PF {c['pf']:.2f}",
-            f"1 pc",
+            "1 pc",
             f"{c['watts']:.0f} W"
         ])
-        
+
     if "spot" in results:
         s = results["spot"]
         boq_rows.append([
@@ -943,7 +1038,7 @@ if results:
     st.download_button(
         "📥 Download BOQ (CSV)" if not is_ar else "📥 تحميل جدول الكميات (CSV)",
         data=csv_buf.getvalue().encode('utf-8-sig'),
-        file_name=f"lighting_boq_{room_type.replace(' ', '_')}.csv",
+        file_name=f"lighting_boq_{safe_filename(room_type)}.csv",
         mime="text/csv"
     )
     st.caption(
