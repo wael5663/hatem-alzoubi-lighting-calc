@@ -63,8 +63,7 @@ img, canvas, svg { max-width: 100% !important; height: auto; }
         min-width: 100% !important;
     }
 
-    /* Metrics sit two per row to save vertical space.
-       Wrapped in @supports so older mobile browsers fall back safely. */
+    /* Metrics sit two per row to save vertical space. */
     @supports selector(:has(*)) {
         [data-testid="stColumn"]:has([data-testid="stMetric"]),
         [data-testid="column"]:has([data-testid="stMetric"]) {
@@ -81,26 +80,25 @@ img, canvas, svg { max-width: 100% !important; height: auto; }
 """
 st.markdown(COMMON_CSS, unsafe_allow_html=True)
 
-# --- Arabic / RTL rules (FIXED FOR MOBILE) ---
+# --- Arabic / RTL rules (FIXED FOR MOBILE SIDEBAR) ---
 if is_ar:
     st.markdown("""
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
 
-        /* 1. Base direction + font */
-        .stApp, [data-testid="stAppViewContainer"], [data-testid="stSidebar"],
-        [data-testid="stSidebarContent"], [data-testid="stMain"], .main {
+        /* 1. Base direction + font (Removed Sidebar from here to prevent flexbox bugs) */
+        .stApp, [data-testid="stAppViewContainer"], [data-testid="stSidebarContent"], [data-testid="stMain"], .main {
             direction: rtl !important;
             font-family: 'Cairo', 'Segoe UI', Tahoma, Arial, sans-serif !important;
         }
 
-        /* 2. Fix Arabic Text Overlaps (Crucial for mobile) */
+        /* 2. Fix Arabic Text Overlaps */
         h1, h2, h3, h4, h5, h6, p, label, li, .stMarkdown, .stCaption, .stApp div {
             line-height: 1.6 !important;
             word-break: break-word !important;
         }
 
-        /* 3. Text alignment (Removed breaking width: 100% rule) */
+        /* 3. Text alignment */
         h1, h2, h3, h4, h5, h6, p, label, li, .stMarkdown, .stCaption,
         [data-testid="stWidgetLabel"], [data-testid="stCaptionContainer"] {
             text-align: right !important;
@@ -161,6 +159,26 @@ if is_ar:
             h1 { text-align: center !important; font-size: 1.4rem !important; }
             [data-testid="stSidebar"] { max-width: 85vw !important; }
             [data-baseweb="select"] div, .stApp input { font-size: 16px !important; } /* stops iOS zoom */
+        }
+
+        /* 13. FIX SIDEBAR STUCK ON SCREEN IN RTL MOBILE */
+        @media (max-width: 768px) {
+            /* Force sidebar to anchor on the right and slide off-screen to the right */
+            [data-testid="stSidebar"] {
+                right: 0 !important;
+                left: auto !important;
+                transform: translateX(100%) !important;
+                transition: transform 0.3s ease-in-out !important;
+            }
+            /* When opened by the user, bring it back to the screen */
+            [data-testid="stSidebar"][aria-expanded="true"] {
+                transform: translateX(0) !important;
+            }
+            /* Move the 'X' close button to the left side of the RTL sidebar */
+            [data-testid="stSidebar"] button[kind="header"] {
+                left: 0 !important;
+                right: auto !important;
+            }
         }
         </style>
     """, unsafe_allow_html=True)
