@@ -52,7 +52,6 @@ img, canvas, svg { max-width: 100% !important; height: auto; }
     h2 { font-size: 1.2rem !important; }
     h3 { font-size: 1.05rem !important; }
 
-    /* Let column rows wrap, and stack columns (supports old + new Streamlit testids) */
     [data-testid="stHorizontalBlock"] {
         flex-wrap: wrap !important;
         gap: 0.5rem !important;
@@ -63,7 +62,6 @@ img, canvas, svg { max-width: 100% !important; height: auto; }
         min-width: 100% !important;
     }
 
-    /* Metrics sit two per row to save vertical space. */
     @supports selector(:has(*)) {
         [data-testid="stColumn"]:has([data-testid="stMetric"]),
         [data-testid="column"]:has([data-testid="stMetric"]) {
@@ -86,32 +84,27 @@ if is_ar:
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
 
-        /* 1. Base direction + font */
         .stApp, [data-testid="stAppViewContainer"], [data-testid="stSidebarContent"], [data-testid="stMain"], .main {
             direction: rtl !important;
             font-family: 'Cairo', 'Segoe UI', Tahoma, Arial, sans-serif !important;
         }
 
-        /* 2. Fix Arabic Text Overlaps */
         h1, h2, h3, h4, h5, h6, p, label, li, .stMarkdown, .stCaption, .stApp div {
             line-height: 1.6 !important;
             word-break: break-word !important;
         }
 
-        /* 3. Text alignment */
         h1, h2, h3, h4, h5, h6, p, label, li, .stMarkdown, .stCaption,
         [data-testid="stWidgetLabel"], [data-testid="stCaptionContainer"] {
             text-align: right !important;
             unicode-bidi: plaintext;
         }
 
-        /* 4. Mixed Arabic/English/number lines: resolve direction per line */
         [data-testid="stAlert"] p, [data-testid="stAlert"] li,
         [data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] li {
             unicode-bidi: plaintext;
         }
 
-        /* 5. Metrics: numbers LTR so they never get clipped/reversed */
         [data-testid="stMetric"] { text-align: right !important; }
         [data-testid="stMetricValue"], [data-testid="stMetricValue"] div {
             direction: ltr !important; text-align: right !important;
@@ -120,19 +113,16 @@ if is_ar:
         [data-testid="stMetricLabel"] { direction: rtl !important; text-align: right !important; }
         [data-testid="stMetricDelta"] { direction: ltr !important; justify-content: flex-end; }
 
-        /* 6. Sliders: keep track LTR */
         [data-testid="stSlider"] { direction: ltr !important; }
         [data-testid="stSlider"] [data-testid="stWidgetLabel"],
         [data-testid="stSlider"] label {
             direction: rtl !important; text-align: right !important;
         }
 
-        /* 7. Number inputs: digits LTR */
         [data-testid="stNumberInput"] input {
             direction: ltr !important; text-align: right !important;
         }
 
-        /* 8. Selectbox / multiselect + dropdowns */
         [data-baseweb="select"] > div {
             flex-direction: row-reverse !important;
             flex-wrap: nowrap !important;
@@ -145,23 +135,16 @@ if is_ar:
             direction: rtl !important; text-align: right !important;
         }
 
-        /* 9. Checkbox */
         [data-testid="stCheckbox"] label { flex-direction: row-reverse; justify-content: flex-end; }
-
-        /* 10. Expanders */
         [data-testid="stExpander"] summary { direction: rtl !important; }
-
-        /* 11. Buttons */
         .stDownloadButton, .stButton { text-align: right !important; }
 
-        /* 12. Small screens */
         @media (max-width: 768px) {
             h1 { text-align: center !important; font-size: 1.4rem !important; }
             [data-testid="stSidebar"] { max-width: 85vw !important; }
             [data-baseweb="select"] div, .stApp input { font-size: 16px !important; }
         }
 
-        /* 13. FIX SIDEBAR STUCK ON SCREEN IN RTL MOBILE */
         @media (max-width: 768px) {
             [data-testid="stSidebar"] {
                 right: 0 !important;
@@ -957,20 +940,30 @@ if results:
         t = results["track"]
         
         # STRUCTURED TRACK LOCATIONS (INTERIOR DESIGN PERSPECTIVE)
-        # Move parallel tracks close to the walls (15% / 85%) to wash walls,
-        # while keeping the spot grid in the center of the room.
         o = 0.45 # 45cm from wall
         lay = t['layout']
         along_x = length >= width
         segs = []
         
         if lay == "Straight (Center)":
-            # If spots exist, shift the center track slightly so it doesn't visually overlap the spot dots
-            center_offset = 0.15 if "spot" in results else 0.0
-            if along_x:
-                segs = [([o, length - o], [width / 2 + center_offset] * 2)]
+            if "chandelier" in results:
+                # If Chandelier exists, move track to 25% to avoid center overlap
+                if along_x:
+                    segs = [([o, length - o], [width * 0.25] * 2)]
+                else:
+                    segs = [([length * 0.25] * 2, [o, width - o])]
+            elif "spot" in results:
+                # If Spots exist, nudge center track slightly so it doesn't slice through spot dots
+                center_offset = 0.15
+                if along_x:
+                    segs = [([o, length - o], [width / 2 + center_offset] * 2)]
+                else:
+                    segs = [([length / 2 + center_offset] * 2, [o, width - o])]
             else:
-                segs = [([length / 2 + center_offset] * 2, [o, width - o])]
+                if along_x:
+                    segs = [([o, length - o], [width / 2] * 2)]
+                else:
+                    segs = [([length / 2] * 2, [o, width - o])]
                 
         elif lay == "Parallel (2)":
             if along_x:
@@ -989,8 +982,6 @@ if results:
                     ([o, o], [o, width - o])]
                     
         for i, (xs, ys) in enumerate(segs):
-            # alpha=0.65 makes the track semi-transparent so spot dots sit visibly on top
-            # zorder=4 keeps the track behind the spots (zorder=5)
             ax.plot(xs, ys, color='#8E44AD', linestyle='--', linewidth=3, 
                     alpha=0.65, zorder=4, label=L_TRACK if i == 0 else None)
 
@@ -1006,9 +997,14 @@ if results:
                     color='#27AE60', linestyle='-.', linewidth=2.5, label=L_PROF)
             ax.plot([off, length - off], [width * 0.88, width * 0.88],
                     color='#27AE60', linestyle='-.', linewidth=2.5)
-        else:
-            ax.plot([length * 0.15, length * 0.85], [width / 2, width / 2],
-                    color='#27AE60', linestyle='-.', linewidth=2.5, label=L_PROF)
+        else: # Center Axis
+            if "chandelier" in results:
+                # Move profile off-center if chandelier exists
+                ax.plot([length * 0.15, length * 0.85], [width * 0.25, width * 0.25],
+                        color='#27AE60', linestyle='-.', linewidth=2.5, label=L_PROF)
+            else:
+                ax.plot([length * 0.15, length * 0.85], [width / 2, width / 2],
+                        color='#27AE60', linestyle='-.', linewidth=2.5, label=L_PROF)
 
     if "hidden" in results:
         ax.fill([0.1, length - 0.1, length - 0.1, 0.1, 0.1],
